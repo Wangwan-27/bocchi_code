@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 	"unicode"
+	"unicode/utf8"
 	"unsafe"
 
 	"image/png"
@@ -7216,8 +7217,13 @@ func (o OsCmdExpr) Eval(ctx *ExecutionContext) interface{} {
 		return fmt.Sprintf("命令执行错误: %v", err)
 	}
 
-	// Windows中文系统下转换编码
+	// Windows中文系统下转换编码：
+	// 子进程输出可能是 UTF-8（Go 程序等），也可能是 GBK（cmd 内建命令）。
+	// 最小改动方案：合法 UTF-8 直接使用，否则按 GBK 解码。
 	if runtime.GOOS == "windows" && isChineseSystem() {
+		if utf8.Valid(output) {
+			return strings.TrimSuffix(string(output), "\r\n")
+		}
 		utf8Output, err := gbkToUTF8(output)
 		if err == nil {
 			// 移除Windows命令输出的尾部换行符
@@ -8447,8 +8453,11 @@ func runCommandAsAdmin(cmdStr string) string {
 		return fmt.Sprintf("管理员权限执行失败: %v", err)
 	}
 
-	// 处理中文编码
+	// 处理中文编码：合法 UTF-8 直接使用，否则按 GBK 解码
 	if isChineseSystem() {
+		if utf8.Valid(output) {
+			return strings.TrimSuffix(string(output), "\r\n")
+		}
 		utf8Output, err := gbkToUTF8(output)
 		if err == nil {
 			return strings.TrimSuffix(utf8Output, "\r\n")
@@ -8472,8 +8481,11 @@ func executeCommand(cmdStr string) string {
 		return fmt.Sprintf("命令执行错误: %v", err)
 	}
 
-	// Windows中文系统编码处理
+	// Windows中文系统编码处理：合法 UTF-8 直接使用，否则按 GBK 解码
 	if runtime.GOOS == "windows" && isChineseSystem() {
+		if utf8.Valid(output) {
+			return strings.TrimSuffix(string(output), "\r\n")
+		}
 		utf8Output, err := gbkToUTF8(output)
 		if err == nil {
 			return strings.TrimSuffix(utf8Output, "\r\n")
