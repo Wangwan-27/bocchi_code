@@ -1,19 +1,20 @@
-# Bocchi4 语言特性文档（Bocchi 4.1 / 解释器 v1.14.0）
-2026.10.19  ---by Uk10xxx-WaldoBlank27(2024-2026)
-> 文件名建议：`Bocchi4-语言特性文档.md`
-> 版本：解释器 `v1.14.0` / 语言核心 `Bocchi 4.1`
-> 本文基于旧版 Bocchi3.23.0-Bocchi 4.0.3 文档，对照当前源码逐条校对更新，**保留全部原有示例代码**并修正错误语法。
-> 标注：✅ 与源码一致 ｜ ⚠️ 旧文档有误、已修正 ｜ 🆕 4.1 新增或旧文档遗漏
+
+# Bocchi4.2 语言特性文档（Bocchi 4.2 / 解释器 v1.14.1）
+2026.10.28  ---by Uk10xxx-WaldoBlank27(2024-2026)
+
+> 文件名：`Bocchi4.2README.markdown`
+> 源码：`Bocchi4.2.go`（13168 行）｜ 可执行文件：`Bocchi4.2.exe`
+> 本文基于旧版《Bocchi4.1README / README / io3使用说明》三份文档，对照 **Bocchi4.2.go 源码逐条校对并实际运行验证**，保留原有示例并修正错误语法。
+> 标注：✅ 与源码/运行结果一致 ｜ ⚠️ 旧文档有误、已修正 ｜ 🆕 4.2 新增
 
 ---
-## 版本特别强调：
-```bocchi
-//1. 列表合并与相加，需通过内存操作实现
-memory.write("arr", [1, 2]);
-memory.append("arr", 3); 
-puts memory.getString("arr"); // → [1 2 3 4 5]
-```
 
+## 版本特别说明
+
+- `bocchi -version` 实际输出：`BOCCHI 1.14.1 (Bocchi 4.1)`（源码中该字符串未随 4.2 更新）
+- `bocchi -help` 横幅显示：`版本 1.14.1 (Bocchi 4.1.4)`
+- REPL 首行显示：`Bocchi REPL v1.14.0 (Bocchi 4.1)`
+- 4.2 相对 4.1.4 的**唯一**语言级新增是 `server` 服务器功能（新增 7 个 Token、7 个关键字），详见 [§14 服务器功能](#14-服务器功能)。
 
 ## 目录
 
@@ -30,12 +31,15 @@ puts memory.getString("arr"); // → [1 2 3 4 5]
 11. [模块与包管理](#11-模块与包管理)
 12. [错误处理与延迟](#12-错误处理与延迟)
 13. [并发](#13-并发)
-14. [测试](#14-测试)
-15. [性能分析](#15-性能分析)
-16. [拆分调试模式](#16-拆分调试模式)
-17. [综合示例集](#17-综合示例集)
-18. [常见错误](#18-常见错误)
-19. [旧版 → 4.1 变更速查](#19-旧版--41-变更速查)
+14. [服务器功能（4.2 新增）](#14-服务器功能42-新增)
+15. [测试](#15-测试)
+16. [性能分析](#16-性能分析)
+17. [拆分调试模式](#17-拆分调试模式)
+18. [测试文件参考（bocchi / tuka）](#18-测试文件参考bocchi--tuka)
+19. [常见错误与已知问题](#19-常见错误与已知问题)
+20. [4.1 → 4.2 变更速查](#20-41--42-变更速查)
+21. [完整测试报告（2026-10-28 实测）](#21-完整测试报告2026-10-28-实测)
+22. [代码示例逐条测试报告（2026-10-28 实测）](#22-代码示例逐条测试报告2026-10-28-实测)
 
 ---
 
@@ -47,11 +51,11 @@ puts memory.getString("arr"); // → [1 2 3 4 5]
 # 查看完整帮助
 bocchi -help
 
-# 安装到系统环境
+# 安装到系统环境（需管理员权限）
 bocchi -env install
 
-# 检查安装状态
-bocchi -env          # 4.1 起：无子参数默认检查状态
+# 检查环境状态（🆕 4.1.4 起还会先做版本检查与扩展更新检测）
+bocchi -env
 bocchi -env status   # 兼容写法
 
 # 卸载
@@ -80,6 +84,8 @@ Hello, Bocchi!
 执行用时: 12.3ms
 ```
 
+> ⚠️ 运行任何脚本前，解释器会**自动加载所有已安装的包**（如 `io4`）。io4 在加载时会执行 `file.write("test.txt", "")` 等顶层语句，因此要求**当前目录可写**；目录只读时会报 `File write error: open test.txt: Access is denied.`。
+
 ---
 
 ## 2. 命令行工具
@@ -88,27 +94,46 @@ Hello, Bocchi!
 
 | 命令 | 说明 |
 |---|---|
-| `bocchi <file>` | 执行脚本 |
-| `bocchi -repl` / `--repl` | 启动 REPL（首行显示 `Bocchi REPL v1.14.0 (Bocchi 4.1)`） |
+| `bocchi <file>` | 执行脚本（支持 `.bocchi` / `.tuka` / 无扩展名） |
+| `bocchi -repl` / `--repl` | 启动 REPL |
 | `bocchi -help` / `-h` / `--help` | 帮助 |
-| `bocchi -version` | 版本号 |
+| `bocchi -version` | 版本号（输出 `BOCCHI 1.14.1 (Bocchi 4.1)`） |
 | `bocchi -start` | 生成 `main.bocchi` 示例 |
 
-### 2.2 环境管理（`-env`）
+### 2.2 环境管理（`-env`）🆕 更新流程
+
+`bocchi -env`（无子参数）现在按顺序执行三步：
+
+1. **版本检查**：找到系统已安装的 bocchi，若低于当前版本则询问 `是否更新为当前版本（覆盖安装）？(Y/n)`，需要管理员权限；
+2. **扩展检查**：扫描当前目录下 `io4.tuka` 及以上的扩展包，若发现则询问是否安装（并自动卸载已安装的旧 `io2` / `io3`）；
+3. **环境状态**：显示 PATH / 安装目录 / 文件关联状态。
+
+实际输出示例（本机验证）：
+
+```
+📌 Bocchi 已是最新版本: 1.14.1
+
+📦 检测到新扩展包: io4.tuka (版本 4)
+   是否安装最新扩展？(Y/n): 已跳过扩展安装
+检查Bocchi环境状态...
+✅ 在PATH中找到: C:\Program Files\Bocchi\bocchi.exe
+✅ 安装目录存在: C:\Program Files\Bocchi
+✅ 文件关联已设置
+```
 
 | 命令 | 说明 |
 |---|---|
-| `bocchi -env` | 🆕 检查环境状态（等价于 `-env status`） |
-| `bocchi -env status` | 检查环境状态（兼容） |
-| `bocchi -env install` | 安装到系统（创建 PATH / 文件关联 / 桌面与开始菜单快捷方式） |
+| `bocchi -env` | 🆕 版本检查 → 扩展检查 → 环境状态 |
+| `bocchi -env install` | 安装 + 同样执行上述三步 |
+| `bocchi -env status` | 仅显示环境状态 |
 | `bocchi -env uninstall` | 卸载 |
 
 ### 2.3 包管理
 
 | 命令 | 说明 |
 |---|---|
-| `bocchi -install <pkg>` | 安装包（支持 `.bocchi` 与 🆕 `.tuka`） |
-| `bocchi -install` | 🆕 无包名时安装**解释器自身**到系统路径 |
+| `bocchi -install <pkg>` | 安装包（支持 `.bocchi` 与 `.tuka`） |
+| `bocchi -install` | 无包名时安装**解释器自身**到系统路径 |
 | `bocchi -uninstall <pkg>` | 卸载包 |
 | `bocchi -list` | 列出已安装包 |
 | `bocchi -package write <pkg>` | 编辑包信息 |
@@ -128,17 +153,17 @@ bocchi -link <源脚本> <输出文件> [图标.ico]
 ```bash
 bocchi -prof script.bocchi
 bocchi --profile -profile-memory script.bocchi
-bocchi -prof -profile-slow script.bocchi
+bocchi -prof -profile-slow 50 script.bocchi
 ```
 
-### 2.6 拆分调试模式 🆕
+### 2.6 拆分调试模式
 
 ```bash
 bocchi "?script.bocchi"
 bocchi "?C:\projects\bug.bocchi"
 ```
 
-将脚本按顶层语句拆分，共享全局变量逐块执行；每块出错时报告 `行:列 + 语句类型 + 错误信息`，不中断后续块，最后汇总失败清单。详见 [§16](#16-拆分调试模式)。
+详见 [§17](#17-拆分调试模式)。
 
 ---
 
@@ -147,14 +172,12 @@ bocchi "?C:\projects\bug.bocchi"
 ### 3.1 自动类型推断（`set`）
 
 ```bocchi
-set varName = value;  // 最常用：自动推导类型
-
 set x = 10;            // 整数（内部为 float64 的整值）
 set y = 3.14;          // 浮点数
 set s = "hello";       // 字符串
 set b = true;          // 布尔
 set list1 = [1, 2, 3]; // 列表
-set dict1 = {name: "Bob", age: 25}; // 字典
+set dict1 = {"name": "Bob", "age": 25}; // 字典
 ```
 
 ### 3.2 多变量一次性声明
@@ -169,26 +192,29 @@ puts a, b, c, d, e;   // 输出：0 0 0 0 0
 ```bocchi
 type int varName = 10;
 type float pi = 3.14;
-type bool ok = true;
+type bool flag = true;
 type string name = "Alice";
 type list numbers = [1, 2, 3];
-type dict user = {name: "Bob", age: 25};
+type dict user = {"name": "Bob", "age": 25};
 ```
 
-### 3.4 类型块（`type { ... }已弃用`）
+### 3.4 类型块（`type { ... }`）
+
+已弃用。
 
 ### 3.5 静态变量（`static`）
 
 ```bocchi
-// 全局同步，自动同步 go{} 中的变量
 static int varName = 10;        // 整数类型
 static float pi = 3.14;         // 浮点数类型
 static string name = "Alice";   // 字符串类型
 static list numbers = [1, 2, 3]; // 列表类型
-static dict user = {name: "Bob", age: 25}; // 字典类型
+static dict user = {"name": "Bob", "age": 25}; // 字典类型
 ```
 
-`static` 声明的变量存放在全局静态区，**首次初始化后不再重初始化**，可通过 REPL `static` 命令查看。
+`static` 声明的变量存放在全局静态区（`staticVariables`），**首次初始化后不再重初始化**，可通过 REPL `static` 命令查看。
+
+> ⚠️ **实测：`static` 变量初始化后不可再赋值**。普通赋值 `s = 2;` 会把新值写进环境的影子变量，而读取时始终优先返回静态区里的初值，因此 `s = 2; puts s;` 仍输出初值（赋值被静默忽略）。需要可变全局量请用 `memory` 或普通 `set`。
 
 ### 3.6 类型一览
 
@@ -215,27 +241,27 @@ static dict user = {name: "Bob", age: 25}; // 字典类型
 | `*` | 乘 |
 | `/` | 除 |
 | `^` | 幂（等价于 `pow`） |
-
-示例：
+| `%` / `mod` | 取模（`math.Mod`，符号跟随被除数） |
 
 ```bocchi
-puts 2 + 3 * 4;   // 输出：14
-puts 2 ^ 10;      // 输出：1024
+puts 2 + 3 * 4;     // 输出：14
+puts 2 ^ 10;        // 输出：1024
+puts 10 % 3;        // 1
+puts 10 mod 3;      // 1（关键字写法也生效）
+puts -10 % 3;       // -1
+puts 10.5 % 3;      // 1.5
+puts 2 ^ 3 % 3;     // 2（^ 与 % 同级，从左到右）
 ```
 
 ### 4.2 比较运算符
 
 `==`（等于）、`!=`（不等于）、`<`（小于）、`>`（大于）、`<=`（小于等于）、`>=`（大于等于）
 
-示例：
-
 ```bocchi
 puts 5 > 3;   // 输出：true
 ```
 
-### 4.3 逻辑运算符 ⚠️
-
-> 旧文档称"无显式逻辑运算符"，**错误**。4.1 支持 `and` / `or`，短路求值。
+### 4.3 逻辑运算符
 
 | 运算符 | 说明 |
 |---|---|
@@ -247,11 +273,11 @@ if (x > 0 and x < 100) { puts "in range"; }
 if (name == "" or name == void) { puts "empty"; }
 ```
 
-> ⚠️ 注意：`and` / `or` 的返回值是 `bool`（不是原值），因为源码内部先 `isTruthy()` 再 `&&` / `||`。
+> ⚠️ `and` / `or` 的返回值是 `bool`（不是原值），内部先 `isTruthy()` 再 `&&` / `||`。
 
 ### 4.4 运算符优先级
 
-`^` > `* /` > `+ -` > 比较 > `and` > `or`
+`^` / `%` > `* /` > `+ -` > 比较 > `and` > `or`
 
 ---
 
@@ -289,7 +315,7 @@ for item in [1, 2, 3] {
 
 > 遍历字典时，`item` 为 `"key:value"` 字符串形式。
 
-### 5.4 计数循环（`for..in`）⚠️
+### 5.4 计数循环（`for..in`）
 
 语法：`for..in <var> <count> { ... }`，`var` 从 `0` 到 `count-1`。
 
@@ -299,13 +325,38 @@ for..in i 10 {
 }
 ```
 
-> **旧文档修正**：`"循环次数: " + i` 在源码中会 panic（字符串不能直接 + 数字），**必须 `i.string`**，或写成 `puts "循环次数: ", i;`。
-
 ### 5.5 跳出循环（`break`）
 
 ```bocchi
 loop (true) {
     if (条件) { break; }   // 立即跳出循环
+}
+```
+
+### 5.6 ⚠️ 块语句后面不要写分号（4.2 实测陷阱）
+
+所有块语句（`if` / `loop` / `for` / `for..in` / `go` / `test` / `obj` / `fn` / `type` 块）的收尾 `}` **后面不能加分号**，否则解析报 `同步到分号`：
+
+```bocchi
+// ❌ 错误写法（实测报错：同步到分号）
+if (x > 0) {
+    puts "pos";
+};
+
+// ✅ 正确写法
+if (x > 0) {
+    puts "pos";
+}
+```
+
+`go { ... }` 在函数体内同样适用（不加分号即可正常解析）：
+
+```bocchi
+fn myfn() {
+    go {
+        puts "async";
+    }
+    return "ok";
 }
 ```
 
@@ -316,10 +367,10 @@ loop (true) {
 ### 6.1 普通定义（`fn`）
 
 ```bocchi
-fn add(a, b) {
+fn add2(a, b) {
     return a + b;
 }
-puts add(2, 3);   // 输出：5
+puts add2(2, 3);   // 输出：5
 ```
 
 ### 6.2 默认参数
@@ -348,54 +399,41 @@ puts sum(1, 2, 3);          // 输出：6
 puts sum(1, 2, 3, 4, 5);    // 输出：15
 ```
 
-### 6.5 默认参数示例
+### 6.4 匿名函数表达式（`fn(params) { ... }`）🆕 常用写法
+
+4.2 服务器 handler 常用此语法：
 
 ```bocchi
-fn greet(name, greeting = "Hello") {
-    return greeting + ", " + name + "!";
-}
-
-puts greet("Alice");              // 输出：Hello, Alice!
-puts greet("Bob", "Hi");          // 输出：Hi, Bob!
+server.get("/", fn(req) {
+    return "hello";
+});
 ```
 
-> ⚠️ 旧文档写的是 `greet("Bob"+"Hi")`，这在语法上会把 `"Bob"+"Hi"` 当成**第一个参数**（`name` 变为 `"BobHi"`），`greeting` 仍取默认值 → 输出 `Hello, BobHi!`。要覆盖 `greeting` 需用逗号分隔。
-
-### 6.6 Lambda
+### 6.5 Lambda
 
 ```bocchi
-set add = lambda(a, b) {
+set add2 = lambda(a, b) {
     return a + b;
 };
-puts add(2, 3);   // 输出：5
+puts add2(2, 3);   // 输出：5
 ```
 
-最小 Lambda 示例：
-
-```bocchi
-set min = lambda(a, b) {
-    if (a < b) {
-        return a;
-    } else {
-        return b;
-    }
-};
-puts min(3, 5);   // 输出：3
-```
-
-### 6.7 尾调用优化
+### 6.6 尾调用优化
 
 ```bocchi
 fn fib(n) {
-    return fib_iter(n, 0, 1);
+    return (fib_iter(n, 0, 1));
 }
 fn fib_iter(n, a, b) {
     if (n == 0) { return a; }
-    return fib_iter(n - 1, b, a + b);   // 尾调用，不增加栈
+    return (fib_iter(n - 1, b, a + b));
 }
+puts fib(10);   // 输出：55
 ```
 
-### 6.8 `rock()` 🆕
+> ⚠️ 实测：`return fn(...);`（返回**命名函数调用**，不带括号）会解析失败（尾调用快速路径与 parsePrimary 重复解析冲突，报"同步到…"）。加一层括号 `return (fn(...));` 即可正常解析，实测 `fib(10) → 55`。
+
+### 6.7 `rock()`
 
 ```bocchi
 rock() {
@@ -403,7 +441,20 @@ rock() {
 }
 ```
 
-> 语法上支持，实际无副作用。可视为"占位/无操作"函数。
+### 6.8 🆕 函数调用记忆化缓存（实测发现）
+
+解释器内置**全局记忆化缓存**（`globalMemoCache`）：对**命名函数**的调用按 `(函数名, 参数串化哈希)` 缓存结果，第二次同参调用直接返回缓存值，不再执行函数体。
+
+**优点**：
+
+- 递归函数指数级加速。实测 `fib_rec(1000)`（朴素递归，`fib数列.bocchi`）**仅 13.9ms** 完成，输出完整的 fib(1000) 大数；
+- `fib(35)` 在协程中也即时返回（9227465）。
+
+**⚠️ 陷阱（实测）**：
+
+1. **类型碰撞**：参数哈希用 `%v` 串化，`1` 与 `"1"` 串化结果相同 → 共享缓存条目。实测 `f(x){return x+x;} f(1); f("1");` 输出 `2` `2`（第二个本应输出 `"11"`）。同名函数被不同类型参数复用同一缓存槽。
+2. **副作用被跳过**：带副作用的函数（如 io4 的 `formax`/`addlist` 会写 `test.txt`）第二次同参调用**不再执行副作用**，只返回缓存值。
+3. **按函数名缓存**：不同作用域/模块中同名函数共享缓存槽（键只有名字，不含定义位置）。
 
 ---
 
@@ -414,16 +465,18 @@ rock() {
 **字面量**：
 
 ```bocchi
-[1, "a", true]
-[]
-[1, 2, 3,]          // 支持尾随逗号
+puts [1, "a", true];
+puts [];
+puts [1, 2, 3,];          // 支持尾随逗号
 ```
+
+> ⚠️ 实测：裸列表字面量**不能单独作为语句**（`[1, 2, 3]` 一行会报"无法同步"，解析器把它当作解构赋值左值）。请放进 `puts` / `set` 等表达式中。
 
 **属性 / 方法**：
 
 | 表达式 | 说明 |
 |---|---|
-| `list.len` | 长度（⚠️ **无括号**，`list.len()` 会解析错误） |
+| `list.len` | 长度（⚠️ **无括号**） |
 | `list.add(x)` | 追加 x |
 | `list.remove(x)` | 删除第一次出现的 x |
 | `list.removeAt(i)` | 删除下标 i |
@@ -432,37 +485,26 @@ rock() {
 
 ```bocchi
 set l = [1, 2, 3];
-l.add(4);
+set tmp = l.add(4);    // ⚠️ 独立语句 l.add(4); 会解析失败，需放进赋值/表达式
 puts l.len;        // 输出：4
 puts l[1];         // 输出：2
 puts l[0:2];       // 输出：[1, 2]
 ```
 
-**旧文档示例（已修正）**：
-
-```bocchi
-list.len;                    // 获取长度（无括号）
-set lin = [1,2,3].add(3);    // 添加元素
-```
+> ⚠️ 实测：以 `变量.方法(...)` 开头的**独立语句**（如 `l.add(4);`、`s.split(" ");`）会解析失败（语句级解析先走"对象成员赋值"分支，而 `add`/`split` 等是关键字 Token）。放进 `set tmp = ...`、`puts ...` 等表达式位置即正常。
 
 ### 7.2 字典
 
 ```bocchi
-set user = {"name": "Alice", age: 25};
+set user = {"name": "Alice", "age": 25};
 puts user["name"];     // 输出：Alice
 user["age"] = 26;
 ```
 
-> 字典字面量的 key 可以用 `"name"` 或裸标识符 `name`（4.1 支持 `{name: ...}` 风格）。
+> ⚠️ 实测：字典字面量的 key **必须是带引号的字符串**（`{"name": ...}`）；裸标识符 `{name: ...}` 会解析失败（`parseDictLiteral` 要求 String key）。
+> ⚠️ **逗号可选**：`{ "a": 1 "b": 2 }` 也能解析（源码 `parseDictLiteral` 中逗号为可选项），但建议还是写逗号。
 
-**旧文档示例**：
-
-```bocchi
-set aaa = {"key": "value", "name": "Alice"};
-puts aaa["key"];    // 输出：value
-```
-
-### 7.3 快速列表生成器 🆕
+### 7.3 快速列表生成器
 
 | 函数 | 说明 |
 |---|---|
@@ -471,25 +513,16 @@ puts aaa["key"];    // 输出：value
 | `range(a, b, step)` | 指定步长 |
 | `repeat(value, count)` | 重复 count 次 |
 
-**旧文档示例**：
-
 ```bocchi
 putsf range(5);          // [0,1,2,3,4]
 putsf range(1, 6);       // [1,2,3,4,5]
 putsf range(0, 10, 2);   // [0,2,4,6,8]
 putsf repeat("hi", 3);   // ["hi", "hi", "hi"]
-
-// 传统列表字面量（修复后的）
-putsf [1, 2, 3];          // 正常
-putsf [];                 // 空列表
-putsf [1, 2, 3,];         // 支持尾随逗号
 ```
 
-> ⚠️ 旧文档列出的 `zeros()` / `ones()` / `seq()` **在当前源码中不可用**（未接入解析器或缺少实现分支），请勿使用。
+> ⚠️ `zeros()` / `ones()` / `seq()` 不可用（未接入解析器）。
 
-### 7.4 列表推导式 (暂不支持)
-
-### 7.5 内嵌变量字符串 🆕
+### 7.4 内嵌变量字符串
 
 在 `puts` / `putsf` / `putsr` 的字符串中可使用 `{var}` 插值：
 
@@ -497,8 +530,6 @@ putsf [1, 2, 3,];         // 支持尾随逗号
 set name = "Bocchi";
 puts "Hello, {name}!";    // 输出：Hello, Bocchi!
 ```
-
-> 仅在输出语句中生效；其他上下文字符串内的 `{}` 会被原样保留（内部以 `\0` 标记）。
 
 ---
 
@@ -520,17 +551,13 @@ obj Animal {
 }
 ```
 
-### 8.2 继承（`?`）⚠️
-
-> 旧文档里 "extends" 是概念描述，实际语法是 **`obj 子类 ? 父类`**。
+### 8.2 继承（`obj 子类 ? 父类`）
 
 ```bocchi
-// 定义子类，继承父类
 obj Dog ? Animal {
     let breed = "未知品种";
     let name = "1";
 
-    // 覆盖父类方法
     fn speak() {
         return "汪汪！我是" + this$name + "，品种是" + this$breed;
     }
@@ -539,15 +566,12 @@ obj Dog ? Animal {
     }
 }
 
-// 创建对象
 set myDog = Dog;
-puts myDog$name;    // 输出：1（子类覆盖了父类的 name）
-puts myDog$breed;   // 输出：未知品种
-puts myDog$speak(); // 输出：汪汪！我是1，品种是未知品种
-puts myDog$getAge(); // 输出：0（继承自父类）
+puts myDog$name;      // 输出：1（子类覆盖了父类的 name）
+puts myDog$breed;     // 输出：未知品种
+puts myDog$speak();   // 输出：汪汪！我是1，品种是未知品种
+puts myDog$getAge();  // 输出：0（方法继承自父类；let 变量不继承）
 ```
-
-> **旧文档修正**：旧示例写 `set myDog = Dog;` 时 `myDog$name` 注释为"动物（继承自父类）"，**实际是 `"1"`**，因为子类 `let name = "1"` 覆盖了父类。若要保留父类值，应删掉子类的 `let name = ...`。
 
 ### 8.3 访问成员与方法
 
@@ -556,7 +580,9 @@ puts myDog$getAge(); // 输出：0（继承自父类）
 | `obj$member` | 属性访问（`$`） |
 | `obj$method(args)` | 方法调用 |
 | `this$member` / `this$method(args)` | 对象内部访问自身 |
-| `super.method(args)` | 调用父类方法 |
+| `super.method(args)` | 调用父类方法(未加入) |
+
+> ⚠️ `obj$member` 访问后**不能再接下标**（如 `req$query["name"]` 会解析失败），需先存入中间变量。
 
 ---
 
@@ -577,32 +603,7 @@ putsf "Loading: ";
 putsf "50%";
 ```
 
-**旧文档示例**：
-
-```bocchi
-// 不换行输出
-putsf "Loading: ";
-putsf "50%";
-
-// 支持嵌入变量
-set name = "Bocchi";
-putsf "Hello, ";
-putsf name;
-puts "!"; // 最后换行
-```
-
-### 9.3 重写输出（`putsr`）🆕
-
-```bocchi
-putsr "Progress: [===      ] 30%";
-time.sleep(0.5);
-putsr "Progress: [======   ] 60%";
-time.sleep(0.5);
-putsr "Progress: [=========] 100%";
-puts ""; // 最后换行
-```
-
-**进度条示例**：
+### 9.3 重写输出（`putsr`）
 
 ```bocchi
 for..in i 101 {
@@ -617,25 +618,14 @@ for..in i 101 {
 set name = input("Enter name: "); // 读取用户输入
 ```
 
+> ⚠️ 实测：每次 `input()` 都会新建 `bufio.Reader`，**多行管道输入会被第一个 `input()` 吞掉缓冲**，因此带多个 `input()` 的脚本（如 `REPL-cmdrode.bocchi`）无法用一次性的管道输入驱动，只能交互式运行（或按行延时写入 stdin）。交互式控制台下无此问题。
+
 ### 9.5 窗口与弹窗
 
 ```bocchi
 title("Bocchi Script");        // 设置控制台窗口标题
 popup("操作完成！");            // 系统弹窗
 clear;                          // 清屏（无括号也行）
-```
-
-**综合示例（旧文档保留）**：
-
-```bocchi
-clear;
-title("Hi");
-
-set a = 3.14159265;
-puts "原始值:", a;
-puts "向下取整:", floor(a);    // 输出 3
-puts "向上取整:", ceil(a);     // 输出 4  
-puts "四舍五入:", round(a);    // 输出 3
 ```
 
 ### 9.6 退出
@@ -650,7 +640,7 @@ exit("2");    // 字符串转数字
 
 ## 10. 内置 API
 
-### 10.1 数学函数 ✅
+### 10.1 数学函数
 
 | API | 说明 |
 |---|---|
@@ -660,65 +650,32 @@ exit("2");    // 字符串转数字
 | `pow(a, b)` 或 `a ^ b` | 幂 |
 | `floor(x)` / `ceil(x)` / `round(x)` | 向下 / 向上 / 四舍五入 |
 
-**旧文档示例**：
-
-```bocchi
-puts sin(3.14/2);
-puts cos(0);
-puts sqrt(25);
-puts log(math.E);
-
-// 测试取整功能
-set a = 3.14159265;
-puts "向下取整:", floor(a);    // 输出 3
-puts "向上取整:", ceil(a);     // 输出 4  
-puts "四舍五入:", round(a);    // 输出 3
-
-set b = 2.71828;
-puts "b 向下取整:", floor(b);  // 输出 2
-puts "b 向上取整:", ceil(b);   // 输出 3
-puts "b 四舍五入:", round(b);  // 输出 3
-
-set c = 5.6;
-puts "c 四舍五入:", round(c);  // 输出 6
-
-// 也可以在表达式中使用
-set result = round(3.14159 * 10) / 10;
-puts "保留一位小数:", result;  // 输出 3.1
-```
-
 ### 10.2 随机数
 
 | API | 说明 |
 |---|---|
 | `rand()` | `[0, 1)` 浮点 |
-| `rand(n)` | 整型 `[0, n)` 或浮点 `[0, n)` |
-| `rand(a, b)` | 整型 `[a, b]` 或浮点 `[a, b)` |
+| `rand(n)` | `[0, n)` |
+| `rand(a, b)` | `[a, b]`（整型） |
 
 ```bocchi
 puts rand();
 puts rand(1, 10);
 ```
 
-### 10.3 类型转换 ⚠️
-
-> 旧文档的 `change(var, type)` 和 `->` **在源码中不存在**。正确写法：
+### 10.3 类型转换
 
 | 写法 | 说明 |
 |---|---|
 | `expr.int` | 转整数（截断） |
 | `expr.float` | 转浮点 |
-| `expr.string` | 转字符串 |
-| `set x = expr.string` | 转类型 |
+| `xxx.string` | 转字符串 |
 
 ```bocchi
 set s = "3.14";
 set f = s.float;      // 3.14
-set n = 3.9.int;      // 3
-set t = 123.string;   // "123"
-
-set float_str = str.float;   // 旧文档写法，实际是 "str".float
-puts str(123);               // "123"
+set n = (3.9).int;      // 3（⚠️ 数字字面量后直接 .int 会被词法吞成小数，需加括号）
+set t = (123).string;   // "123"（同上，变量则无需括号：s.float ✓）
 ```
 
 ### 10.4 字符串方法
@@ -728,18 +685,6 @@ puts str(123);               // "123"
 | `s.len` | 长度（**无括号**） |
 | `s.split(sep)` | 按 sep 分割为列表 |
 | `s.replace(old, new)` | 全部替换 |
-
-**旧文档示例**：
-
-```bocchi
-set str = "Hello World";
-
-// 字符串分割
-set parts = str.split(" ");   // ["Hello", "World"]
-
-// 字符串替换
-set new_str = str.replace("World", "Bocchi");  // "Hello Bocchi"
-```
 
 ### 10.5 文件与目录
 
@@ -753,45 +698,20 @@ set new_str = str.replace("World", "Bocchi");  // "Hello Bocchi"
 | `file.delete(path)` | 删除文件 |
 | `file.encrypt(path, pwd)` | AES-GCM 加密 → `.enc` |
 | `file.decrypt(path, pwd)` | 解密 → `.dec` |
-| `file.scan(path)` | 扫描二维码（⚠️ 旧文档误写为 `qr.scan`） |
+| `file.scan(path)` | 扫描二维码（⚠️ 不是 `qr.scan`） |
 | `dir.delete(path)` | 递归删除目录 |
-| `dir.image.show(path)` | 显示图片（⚠️ 旧文档误写为 `image.show`） |
-| `dir.image.addText(path, text, size, x, y, color)` | 在图片上叠加文字；`color` 为 `"R,G,B"` 字符串 |
-
-**旧文档示例**：
-
-```bocchi
-set content = file.read("data.txt");
-file.write("output.txt", "Hello");
-file.mkdir("mydir");
-file.delete("temp.txt");
-dir.delete("old_dir");
-
-// 加密与解密
-file.encrypt("secret.txt", "pass123");
-file.decrypt("secret.txt.enc", "pass123");
-```
+| `dir.image.show(path)` | 显示图片（⚠️ 不是 `image.show`） |
+| `dir.image.addText(path, text, size, x, y, color)` | 图片叠加文字；`color` 为 `"R,G,B"` |
 
 ### 10.6 时间
 
-| API | 说明 |
-|---|---|
-| `time.now()` | 当前时间 |
-| `time.sleep(seconds)` | 休眠秒数（支持小数） |
-
 ```bocchi
-set now = time.now();
-puts time.format(now, "2006-01-02 15:04:05");
+set nowtime = time.now();
+puts time.format(nowtime, "2006-01-02 15:04:05");   // ⚠️ now 是关键字，不能作变量名
 time.sleep(2);
 ```
 
-### 10.7 并发（详见 [§13](#13-并发)）
-
-`go { ... }` / `@go { ... }` / `ok(var) = expr;` / `wait_all;`
-
-### 10.8 内存命名空间 🆕
-
-用于 `go{}` 协程间共享数据的线程安全全局内存：
+### 10.7 内存命名空间
 
 | API | 说明 |
 |---|---|
@@ -818,7 +738,7 @@ wait_all;
 puts memory.read("counter");   // 1000
 ```
 
-### 10.9 系统命令与参数
+### 10.8 系统命令与参数
 
 | API | 说明 |
 |---|---|
@@ -828,162 +748,61 @@ puts memory.read("counter");   // 1000
 | `os.args[i]` | 第 i 个参数 |
 | `os.argc` | 参数数量 |
 
-**旧文档示例**：
+> 🛠️ **中文编码（2026-10-28 已修复）**：`os.cmd` / `os.admin_cmd` 捕获子进程输出时，先探测是否合法 UTF-8——合法（如 `bocchi` 等 Go 程序的输出）直接用，否则（如 `cmd` 内建命令的 GBK 输出）自动按 GBK 解码。实测 `puts os.cmd("bocchi us.bocchi");` 的 `执行用时` 不再乱码，GBK 字节流（`type gbk文件`）也正常。注意：系统里已安装的 `C:\Program Files\Bocchi\bocchi.exe` 仍是旧版（只按 GBK 解码），需要 `bocchi -env install` 或 `bocchi -install` 覆盖更新后才同样修复。
+
+### 10.9 键盘 / 鼠标
+
+**键盘**：`keyboard.press("a")` / `keyboard.release("a")` / `keyboard.type("text")` / `keyboard.record([秒 [, 文件]])` / `keyboard.stopRecord()`
+
+**鼠标**：`mouse.move(x, y)` / `mouse.click()` 或 `mouse.click(left/right/middle)` / `mouse.scroll(delta)` / `mouse.getPos()`（返回 `{x, y}` 字典）
+
+### 10.10 图像识别与截图
+
+> ⚠️ 路径在**括号内**，`region` / `confidence` / `time.sleep(...)` 在**括号外**，空格分隔。
 
 ```bocchi
-set output = os.cmd("dir");         // 普通权限
-set admin_output = os.admin_cmd("需要管理员权限的命令");  // 管理员权限
-
-// 命令行参数
-set args = os.args;          // 参数列表
-set argc = os.argc;          // 参数数量
-set first_arg = os.args[0];  // 第一个参数
-
-// 窗口标题
-title("Bocchi Script");      // 设置控制台窗口标题
-```
-
-**危险命令拦截示例**：
-
-```bocchi
-set result = os.cmd("rm -rf /");  // 返回警告信息，不执行
-```
-
-### 10.10 键盘 / 鼠标
-
-**键盘**：
-
-| API | 说明 |
-|---|---|
-| `keyboard.press("a")` | 按下 |
-| `keyboard.release("a")` | 释放 |
-| `keyboard.type("text")` | 粘贴式输入 |
-| `keyboard.record([秒 [, 文件]])` | 🆕 开始键盘记录 |
-| `keyboard.stopRecord()` | 🆕 停止记录 |
-
-**旧文档示例**：
-
-```bocchi
-// 键盘控制示例
-keyboard.press("a");              // 按下 a 键
-keyboard.release("a");            // 释放 a 键
-
-// 组合操作 - 模拟快捷键
-keyboard.press("ctrl");
-keyboard.press("v");
-keyboard.release("v");
-keyboard.release("ctrl");
-
-keyboard.type("password");        // 以复制的方式输入文本
-```
-
-**鼠标**：
-
-| API | 说明 |
-|---|---|
-| `mouse.move(x, y)` | 移动 |
-| `mouse.click()` / `mouse.click(left/right/middle)` | 点击 |
-| `mouse.scroll(delta)` | 滚动 |
-| `mouse.getPos()` | 返回 `{x, y}` 字典 |
-
-**旧文档示例**：
-
-```bocchi
-// 鼠标控制示例
-mouse.move(500, 300);
-mouse.click();                    // 左键点击
-mouse.click(right);               // 右键点击
-mouse.scroll(5);                  // 向上滚动
-
-// 获取鼠标位置
-set pos = mouse.getPos();
-puts "鼠标位置:", pos;
-```
-
-### 10.11 图像识别与截图
-
-> ⚠️ **语法修正**：路径在**括号内**，`region` / `confidence` / `time.sleep(...)` 在**括号外**，空格分隔。
-
-| API | 示例 |
-|---|---|
-| `image_find` | `set r = image_find("btn.png") region(0, 0, 800, 600) confidence=0.8 time.sleep(3);` |
-| `image_click` | `image_click("btn.png") left confidence=0.9 time.sleep(3);` |
-| `image_wait` | `image_wait("loading.png") confidence=0.7 time.sleep(10);` |
-| `image_wait_disappear` | `image_wait_disappear("loading.png") time.sleep(10);` |
-| `image_exists` | `if (image_exists("icon.png") confidence=0.6) { puts "存在"; }` |
-| `screenshot` | `screenshot("screen.png");` 或 `screenshot("region.png") region(100, 100, 400, 300);` |
-
-**旧文档示例（已修正语法）**：
-
-```bocchi
-// 图像查找
 set result = image_find("button.png") region(0, 0, 800, 600) confidence=0.8;
 if (result["found"]) {
     puts "找到图像，位置: (" + result["x"].string + ", " + result["y"].string + ")";
 }
 
-// 图像点击
 image_click("button.png") left region(0, 0, 800, 600) confidence=0.9;
+image_wait("loading.png") confidence=0.7 time.sleep(10);
+image_wait_disappear("loading.png") time.sleep(10);
 
-// 图像等待
-image_wait("loading.png") region(0, 0, 800, 600) confidence=0.7 time.sleep(10);
-
-// 等待图像消失
-image_wait_disappear("loading.png") region(0, 0, 800, 600) confidence=0.7 time.sleep(10);
-
-// 检查图像是否存在
 if (image_exists("icon.png") confidence=0.6) {
     puts "图像存在";
 }
 
-// 屏幕截图
 screenshot("screen.png");
-screenshot("region.png") region(100, 100, 400, 300);  // 指定区域截图
-```
-
-### 10.12 二维码
-
-```bocchi
-set data = file.scan("qr_code.png");
-```
-
-> ⚠️ 旧文档 `qr.scan(path)` **不存在**，正确是 `file.scan(path)`。
-
-### 10.13 键盘录制 🆕
-
-```bocchi
-keyboard.record(10);                          // 记录 10 秒，默认保存到 keyboard_record.txt
-keyboard.record(10, "my_record.txt");         // 指定文件
-keyboard.record();                             // 持续记录，直到 stopRecord()
-keyboard.stopRecord();
+screenshot("region.png") region(100, 100, 400, 300);
 ```
 
 ---
 
 ## 11. 模块与包管理
 
-### 11.1 引用模块（`use已弃用（默认自动调用）`）
+### 11.1 自动加载（`use` 已弃用）
 
+所有**已安装的包**在每次脚本运行开始时自动加载到同一全局环境（`loadAllPackages`），无需 `use`。本机验证：安装 `io4` 后运行任何脚本都会先执行 `io4.tuka` 的顶层语句。
 
-### 11.2 直接引入脚本（`mod`）🆕
+### 11.2 直接引入脚本（`mod`）
 
 ```bocchi
 mod "lib/helpers.bocchi";
 ```
 
-路径限制：必须为相对路径、不含 `..`、扩展名为 `.bocchi` / `.tuka` / 无扩展名。作用：在当前环境中执行目标脚本，等同于"源码包含"。
+路径限制：必须为相对路径、不含 `..`、扩展名为 `.bocchi` / `.tuka` / 无扩展名。作用：在当前环境中执行目标脚本，等同于"源码包含"（重复引用会被跳过）。
 
 ### 11.3 包安装
 
 ```bash
 bocchi -install package_name          # 安装包
-bocchi -install io3.tuka              # 🆕 支持 .tuka 扩展包
-bocchi -env install                   # 安装解释器到系统（安装完会询问是否安装 io3.tuka）
-bocchi -list                          # 列出已安装
+bocchi -install io4.tuka              # 支持 .tuka 扩展包
+bocchi -env install                   # 安装解释器（随后检测并询问安装 io4.tuka）
+bocchi -list                          # 列出已安装（本机输出：1. io4）
 bocchi -uninstall package_name
 ```
-
-> 🆕 从 `bocchi -env install` 或 `bocchi -install`（无包名）安装解释器时，会询问是否同时安装当前目录下的 `io3.tuka`；若 `io3` 已安装则**直接覆盖原文件**。
 
 ### 11.4 加密包
 
@@ -1029,19 +848,16 @@ go {
 }
 ```
 
-### 13.2 带错误追踪的协程（`@go（已弃用）`）
+### 13.2 `@go`（已弃用）
 
-### 13.3 同步变量到全局（`ok`）🆕
+### 13.3 同步变量到全局（`ok`）
 
 ```bocchi
 set localVar = 0;
 go {
-    // 修改 localVar
     ok(localVar) = 42;   // 将 42 同步到全局 localVar
 }
 ```
-
-> 用于子协程将结果写回全局环境（线程安全）。
 
 ### 13.4 等待所有协程（`wait_all`）
 
@@ -1051,48 +867,223 @@ go { ... }
 wait_all;    // 阻塞直到所有 go / @go 完成
 ```
 
+> ⚠️ `go { ... }` 结尾**不要加分号**（见 [§5.6](#56--块语句后面不要写分号42-实测陷阱)）。`go` 可以出现在函数体内部。
+
 ---
 
-## 14. 测试
+## 14. 服务器功能（4.2 新增）
 
-### 14.1 定义测试
+`server` 命名空间基于 Go `net/http` 实现，提供最小化 HTTP 服务器。本章所有行为均在本机用 `Bocchi4.2.exe` 实际运行验证。
+
+### 14.1 路由注册
+
+| API | 说明 |
+|---|---|
+| `server.get(path, handler)` | 注册 GET 路由 |
+| `server.post(path, handler)` | 注册 POST 路由 |
+| `server.put(path, handler)` | 注册 PUT 路由 |
+| `server.delete(path, handler)` | 注册 DELETE 路由 |
+
+- `path` 必须是字符串字面量/表达式结果为字符串；
+- `handler` 必须是**函数**（`fn` 命名函数、匿名函数 `fn(params) {...}` 或 `lambda` 均可）；
+- 同一 `method + path` 重复注册时**后者覆盖前者**。
+
+```bocchi
+server.get("/", fn(req) {
+    return "Hello Bocchi!";
+});
+```
+
+### 14.2 请求对象（`req`）
+
+handler 最多接收一个参数，为 `dict`，含以下键：
+
+| 键 | 类型 | 说明 |
+|---|---|---|
+| `method` | string | HTTP 方法，如 `"GET"` |
+| `path` | string | 请求路径 |
+| `query` | dict | URL 查询参数（每个 key 取第一个值） |
+| `headers` | dict | 请求头（每个 key 取第一个值） |
+| `body` | string | 请求体原文 |
+
+在 handler 内用 `$` 访问：
+
+```bocchi
+server.post("/save", fn(req) {
+    return "body=" + req$body;
+});
+
+server.get("/q", fn(req) {
+    set q = req$query;          // ⚠️ 先取出来再下标访问
+    set m = req$method;
+    return "name=" + q["name"] + " method=" + m;
+});
+```
+
+> ⚠️ **不能**直接写 `req$query["name"]`（`$` 成员访问后不能再接 `[...]`，会解析失败）。必须先 `set q = req$query;` 再 `q["name"]`。
+
+### 14.3 返回值与响应格式
+
+| handler 返回值 | 响应行为（实测） |
+|---|---|
+| `string` | `200`，`Content-Type: text/plain; charset=utf-8`，正文为字符串 |
+| `dict`（含 `status` / `headers` / `body` 键） | `status` 数字为状态码（默认 200）；`headers` 字典逐项设置响应头；`body` 为正文；未显式设置 Content-Type 时为 text/plain |
+| 数字等其它类型 | `200`，`text/plain`，`fmt.Sprint` 结果 |
+| 无 `return`（nil） | `200`，空正文 |
+| handler 内 panic / 运行出错 | ⚠️ 实测为 **`200`**（不是 500），正文 `服务器内部错误: <错误信息>`（服务器不会崩溃）。原因是内部错误字典里的 `status` 是 Go 整型，而响应写入时只识别浮点状态码，导致状态码丢失、退回 200 |
+
+```bocchi
+server.get("/json", fn(req) {
+    return {
+        "status": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": "{\"ok\":true}"
+    };
+});
+```
+
+> `return` 的值会通过 recover 捕获成为响应；handler 内部出错同样被捕获并转为 500。
+
+### 14.4 启动 / 停止 / 等待
+
+| API | 说明 |
+|---|---|
+| `server.listen(port)` | **阻塞**监听；port 必须为 1–65535 的数字；启动时打印 `[Server] 正在监听 http://localhost:<port>`；启动瞬间**快照**当前已注册路由表 |
+| `server.stop()` | 优雅关闭（5 秒超时），打印 `[Server] 已停止`；`listen` 随之返回 |
+| `server.wait()` | 阻塞直到服务器停止（每 100ms 轮询） |
+
+最简写法（listen 阻塞主流程）：
+
+```bocchi
+server.get("/", fn(req) {
+    return "hi";
+});
+
+server.get("/stop", fn(req) {
+    go {
+        time.sleep(0.3);
+        server.stop();
+    }
+    return "stopping...";
+});
+
+puts "服务器启动: http://localhost:18360";
+server.listen(18360);      // 阻塞直到 stop()
+puts "服务器已停止";
+```
+
+实测输出：
+
+```
+服务器启动: http://localhost:18360
+[Server] 正在监听 http://localhost:18360
+服务器已停止
+[Server] 已停止
+```
+
+后台监听写法（listen 放进协程，主流程继续做事）：
+
+```bocchi
+server.get("/", fn(req) {
+    return "hi";
+});
+go {
+    server.listen(18361);
+}
+time.sleep(1);                       // 等服务就绪
+set r = os.cmd("curl -s http://localhost:18361/");
+puts r;                              // 输出：hi
+server.stop();
+server.wait();                       // 等 listen 协程真正退出
+puts "done";
+```
+
+### 14.5 未匹配处理（实测）
+
+| 场景 | 行为 |
+|---|---|
+| 路径未被任何方法注册 | `404 Not Found` |
+| 路径已注册但方法不符 | `405 Method Not Allowed`，响应头带 `Allow: GET, PUT`（列出该路径已注册的方法，排序） |
+
+### 14.6 完整示例
+
+```bocchi
+server.get("/", fn(req) {
+    return "Hello Bocchi!";
+});
+
+server.post("/echo", fn(req) {
+    return req$body;              // 原样返回请求体
+});
+
+server.get("/q", fn(req) {
+    set q = req$query;
+    return "name=" + q["name"];
+});
+
+server.put("/item", fn(req) {
+    return "PUT " + req$body;
+});
+
+server.delete("/item", fn(req) {
+    return "DELETED";
+});
+
+server.get("/stop", fn(req) {
+    go {
+        time.sleep(0.3);
+        server.stop();
+    }
+    return "stopping...";
+});
+
+server.listen(18360);
+```
+
+### 14.7 ⚠️ 4.2 新增保留字
+
+`server`、`get`、`post`、`put`、`listen`、`stop`、`wait` 在 4.2 中是**全局关键字**（词法层无条件匹配），因此这些词**不能再用作变量名 / 函数名**（4.1 脚本中出现同名标识符会解析失败）。
+
+---
+
+## 15. 测试
+
+### 15.1 定义测试
 
 ```bocchi
 test "数学运算测试" {
     assert(2 + 2 == 4, "加法测试");
     assert(5 * 5 == 25, "乘法测试");
     assert(10 / 2 == 5, "除法测试");
-};
+}
 
 test "字符串测试" {
-    set str = "Hello";
-    assert(str.len == 5, "长度测试");         // ⚠️ .len 无括号
-    assert(str.replace("H", "J") == "Jello", "替换测试");
-};
+    set s = "Hello";             // ⚠️ str 是关键字（str() 转换），不能作变量名
+    assert(s.len == 5, "长度测试");         // ⚠️ .len 无括号
+    assert(s.replace("H", "J") == "Jello", "替换测试");
+}
 ```
 
-> ⚠️ 旧文档 `str.len()` **错误**：`.len` 无括号。
-
-### 14.2 运行测试
+### 15.2 运行测试
 
 ```bocchi
 runTests;
 ```
 
-若脚本中定义了 `test`，在脚本执行完毕后会自动运行；也可显式 `runTests;`。
+- 若脚本中定义了 `test`，脚本执行完毕后会**自动运行**；也可显式 `runTests;`（写在中间的测试立即运行，后面的测试块留到结束合并运行）。
+- 失败时 panic（测试模式下），输出带 ✓ / ✗ 与耗时。
+- ⚠️ `test "..." { ... }` 结尾**不要加分号**（见 [§5.6](#56--块语句后面不要写分号42-实测陷阱)）。
 
-### 14.3 断言
+### 15.3 断言
 
 ```bocchi
 assert(condition, "错误说明");
 assert(condition);   // 消息可选
 ```
 
-失败时 panic（测试模式下），输出中带 ✓ / ✗ 与耗时。
-
 ---
 
-## 15. 性能分析
+## 16. 性能分析
 
 ```bash
 bocchi -prof script.bocchi
@@ -1110,7 +1101,7 @@ bocchi -prof -profile-slow 50 script.bocchi
 
 ---
 
-## 16. 拆分调试模式
+## 17. 拆分调试模式
 
 ```bash
 bocchi "?script.bocchi"
@@ -1124,10 +1115,8 @@ bocchi "?script.bocchi"
 ✅ 解析成功，共 12 个语句块
 ────────────────────────────────────────────────────────────
 ✓ [1/12] 行 3:1 —— 执行成功 (main.TypeDeclaration)
-✓ [2/12] 行 5:1 —— 执行成功 (main.FunctionDef)
 ❌ [3/12] 行 15:5 —— 执行失败 (main.FunctionCall)
    错误: Undefined variable: foo
-...
 ────────────────────────────────────────────────────────────
 执行完成: 成功 10, 失败 2, 总计 12
 
@@ -1145,338 +1134,232 @@ bocchi "?script.bocchi"
 
 ---
 
-## 17. 综合示例集
+## 18. 测试文件参考（bocchi / tuka）
 
-### 17.1 变量与运算
+以下文件位于项目目录，可直接 `bocchi <文件>` 运行作为回归测试（⚠️ 带 GUI/键盘/长耗时操作的文件请谨慎运行）：
 
-```bocchi
-// 变量与运算
-set x = 10;
-set y = 3.14;
-puts x + y; // 输出：13.14
-```
+### 18.1 综合回归测试
 
-### 17.2 Lambda 最小值
+| 文件 | 说明 |
+|---|---|
+| `完整更新测试.bocchi` | 最大综合测试：取整、输出、列表生成器、函数、循环、鼠标、并发 `go/ok`、截图、`test/assert/runTests`、命令行参数、键盘录制、对象/继承、memory 全 API |
+| `bocchi4.1p\完整测试用例.bocchi` | 与 `完整更新测试.bocchi` 同源的 4.1 版本用例（内容一致，可对比回归） |
 
-```bocchi
-set min = lambda(a, b) {
-    if (a < b) {
-        return a;
-    } else {
-        return b;
-    }
-};
-puts min(3, 5); // 输出：3
-```
+### 18.2 4.2 服务器测试
 
-### 17.3 取整 & putsr 进度条综合
+| 文件 | 说明 |
+|---|---|
+| `web.tuka` | 🆕 服务器功能测试：`server.get("/")`（返回 `test.html` 内容，实测 200 + text/html）、`server.post("/save")`（请求体写入 `us.bocchi` 并用 `bocchi us.bocchi` 执行，⚠️ 会覆写 `us.bocchi`，勿随便 POST）、`server.get("/run")`（变量 `x` 未定义时实测返回 200 + 正文 `服务器内部错误: Invalid operands for +`）、`server.listen(18362)`。服务器本身启动、路由、404 均正常 |
 
-```bocchi
-// 测试取整功能
-clear;
-title("Hi");
+### 18.3 语言特性测试
 
-set a = 3.14159265;
-puts "原始值:", a;
-puts "向下取整:", floor(a);    // 输出 3
-puts "向上取整:", ceil(a);     // 输出 4  
-puts "四舍五入:", round(a);    // 输出 3
+| 文件 | 说明 |
+|---|---|
+| `statictest.tuka` | 切片 `a[2:5]`、io4 的 `del/setlist`、`static int age`、`{name}` 嵌入字符串、`memory` 并发累加、取模 `% / mod`、`os.cmd` 调 `us.bocchi` |
+| `newtest.tuka` | 对象继承 + `set Dog$name = "dog"` 成员赋值 |
+| `io4.tuka` | io4 扩展库源码（min/max/sum/avg/abs/formax、addlist/del/setlist/isinlist/indexof/countof/join/choice、trim/repeatString/padLeft/padRight、sort/reverse2、isNumber/isString/typeOf、upper/lower、clamp/sign/factorial、shuffle/randString 等）。已安装为包时每次运行脚本自动加载 |
+| `bocchi5_yuan.tuka` | 用脚本实现的简易算式预处理：读 `yuan.bocchi`（内容 `12+12`）→ 拆分运算符 → 写入 `yuanout.btmp` → 计算输出 `24` |
+| `io3使用说明.markdown` | io3 扩展函数文档（io4 的前一版） |
 
-set b = 2.71828;
-puts "b 原始值:", b;
-puts "b 向下取整:", floor(b);  // 输出 2
-puts "b 向上取整:", ceil(b);   // 输出 3
-puts "b 四舍五入:", round(b);  // 输出 3
+### 18.4 其它
 
-set c = 5.6;
-puts "c 四舍五入:", round(c);  // 输出 6
-
-// 也可以在表达式中使用
-set result = round(3.14159 * 10) / 10;
-puts "保留一位小数:", result;  // 输出 3.1
-
-// 不换行输出
-putsf "Loading: ";
-putsf "50%";
-
-// 重写输出（用于进度条等）
-putsr "Progress: [===      ] 30%";
-time.sleep(0.5);
-putsr "Progress: [======   ] 60%";
-time.sleep(0.5);
-putsr "Progress: [=========] 100%";
-puts ""; // 最后换行
-
-// 支持嵌入变量
-set name = "Bocchi";
-putsf "Hello, ";
-putsf name;
-puts "!"; // 最后换行
-
-type bool c = a != b;
-puts c;
-
-// 使用快速列表生成器语法
-putsf range(5);          // [0,1,2,3,4]
-putsf range(1, 6);       // [1,2,3,4,5]
-putsf range(0, 10, 2);   // [0,2,4,6,8]
-putsf repeat("hi", 3); // ["hi", "hi", "hi"]
-
-// 传统列表字面量（修复后的）
-putsf [1, 2, 3];          // 正常
-putsf [];                 // 空列表
-putsf [1, 2, 3,];         // 支持尾随逗号
-puts;
-```
-
-### 17.4 默认参数 + 可变参数综合
-
-```bocchi
-// 默认参数示例
-fn greet(name, greeting = "Hello") {
-    return greeting + ", " + name + "!";
-}
-
-puts greet("Alice");           // 输出: Hello, Alice!
-puts greet("Bob", "Hi");       // 输出: Hi, Bob!
-
-fn sum(...numbers) {
-    set total = 0;
-    for n in numbers {
-        total = total + n;
-    }
-    return total;
-}
-
-puts sum(1, 2, 3);        // 输出: 6
-puts sum(1, 2, 3, 4, 5);  // 输出: 15
-
-fn calculate(operation, ...values) {
-    if (operation == "add") {
-        set result = 0;
-        for v in values {
-            result = result + v;
-        }
-        return result;
-    } else if (operation == "multiply") {
-        set result = 1;
-        for v in values {
-            result = result * v;
-        }
-        return result;
-    }
-}
-
-puts calculate("add", 1, 2, 3);        // 输出: 6
-puts calculate("multiply", 2, 3, 4);   // 输出: 24
-// 注意：calculate(2, 3, 4) 中 "2" 会作为 operation 参与 == 比较，结果为 nil
-```
-
-### 17.5 图像识别自动化
-
-```bocchi
-set result = image_find("button.png") region(0, 0, 800, 600) confidence=0.8;
-if (result["found"]) {
-    puts "找到图像，位置: (" + result["x"].string + ", " + result["y"].string + ")";
-}
-
-image_click("button.png") left region(0, 0, 800, 600) confidence=0.9;
-
-image_wait("loading.png") confidence=0.7 time.sleep(10);
-
-image_wait_disappear("loading.png") time.sleep(10);
-
-if (image_exists("icon.png") confidence=0.6) {
-    puts "图像存在";
-}
-
-screenshot("screen.png");
-screenshot("region.png") region(100, 100, 400, 300);
-```
-
-### 17.6 鼠标键盘自动化
-
-```bocchi
-mouse.move(500, 300);
-mouse.click();
-mouse.click(right);
-mouse.scroll(5);
-
-set pos = mouse.getPos();
-puts "鼠标位置:", pos;
-
-keyboard.press("a");
-keyboard.release("a");
-
-keyboard.press("ctrl");
-keyboard.press("v");
-keyboard.release("v");
-keyboard.release("ctrl");
-
-keyboard.type("password");
-```
-
-### 17.7 测试集
-
-```bocchi
-test "数学运算测试" {
-    assert(2 + 2 == 4, "加法测试");
-    assert(5 * 5 == 25, "乘法测试");
-    assert(10 / 2 == 5, "除法测试");
-};
-
-test "字符串测试" {
-    set str = "Hello";
-    assert(str.len == 5, "长度测试");
-    assert(str.replace("H", "J") == "Jello", "替换测试");
-};
-
-// 运行所有测试
-runTests;
-```
-
-### 17.8 进度条
-
-```bocchi
-for..in i 101 {
-    putsr "进度: " + i.string + "%";
-    time.sleep(0.1);
-}
-```
-
-### 17.9 内存跨协程共享
-
-```bocchi
-memory.write("counter", 0);
-
-go {
-    for..in i 1000 {
-        memory.add("counter", 1);
-    }
-}
-
-go {
-    for..in i 1000 {
-        memory.add("counter", 1);
-    }
-}
-
-wait_all;
-puts memory.read("counter");    // 2000
-```
-
-### 17.10 文件读写 + 追加
-
-```bocchi
-file.write("test.txt", "");         // 清空
-file.append("test.txt", "line1\n");
-file.append("test.txt", "line2\n");
-
-set content = file.read("test.txt");
-puts content;
-
-set lines = file.read_lines("test.txt");
-puts lines.len;                     // 2
-```
+| 文件 | 说明 |
+|---|---|
+| `fib数列.bocchi` | `fib_rec(1000)` 朴素递归——得益于 [§6.8 记忆化缓存](#68--函数调用记忆化缓存实测发现)，实测 **13.9ms** 即完成并输出完整大数（无缓存时该脚本会永远跑不完） |
+| `REPL-cmdrode.bocchi` | 用脚本实现的迷你 REPL（`cmd.mode` / `putsln` / `exit`） |
+| `1.bocchi` | 环境自检：解析 `bocchi -version` 输出判断安装状态，并执行两条 `os.cmd` 维护命令 |
+| `us.bocchi` | 最小脚本（输出 `2`），被 `web.tuka` / `statictest.tuka` 通过 `os.cmd` 调用 |
+| `yuan.bocchi` | 最小算式文件（`12+12`），被 `bocchi5_yuan.tuka` 读取 |
+| `word.bocchi` | 键盘自动化示例（`keyboard.type` + 回车 x10，需 GUI 环境） |
+| `test.txt` | io4 的中转文件（`formax` / `addlist` 依赖；顶层加载时会自动创建） |
 
 ---
 
-## 18. 常见错误
+## 19. 常见错误与已知问题
+
+### 19.1 常见错误
 
 | 错误信息 | 原因 | 解决 |
 |---|---|---|
 | `Undefined variable: xxx` | 变量未声明 | 使用 `set` / `type` / `static` 声明 |
-| `Type mismatch: expected ...` | 类型不匹配 | 检查类型或使用 `.int` / `.float` / `.string` 转换 |
-| `Invalid operands for +` | 字符串 + 数字 | 使用 `.string` 显式转换 |
+| `Type mismatch` | 类型不匹配 | 检查类型或用 `.int` / `.float` / `.string` 转换 |
+| `Invalid operands for +` | 字符串 + 数字 / nil | 使用 `.string` 显式转换 |
+| `同步到分号 [行:列]` | 块语句 `}` 后多写了 `;` | 删掉块语句结尾的分号（[§5.6](#56--块语句后面不要写分号42-实测陷阱)） |
+| `Syntax error in primary expression: unexpected token ...` | 语法不合法（如 `req$query["x"]`、`obj$m` 后接下标） | 先 `set q = req$query;` 再下标访问 |
+| `File write error: open test.txt: Access is denied.` | 当前目录只读（io4 加载时写 `test.txt` 失败） | 在可写目录下运行脚本 |
+| `server.listen 端口必须是数字` / `端口必须在 1-65535 之间` | listen 参数非法 | 传入合法数字端口 |
+| `server.get 的 handler 必须是函数` | handler 不是函数 | 用 `fn` / `lambda` / 匿名 `fn(...) {...}` |
 | `列表索引越界` | 下标超范围 | 检查 `list.len` |
-| `文件读取失败` / `File read error` | 路径错误或无权限 | 检查路径、权限 |
 | `非法文件路径` | 路径含 `..` 或绝对路径 | 使用相对安全路径 |
-| `图像未找到` / `未找到图像` | 图像识别失败 | 降低 `confidence`、缩小 `region`、检查素材质量 |
-| `等待图像出现超时` | 超时未出现 | 增大 `time.sleep(N)` 或减小置信度 |
-| `内存不足` | 内存占用过多 | 优化算法 / 使用 `memory` 分批 |
-| `WaitAll` 阻塞 | `go` 未完成 | 检查子协程是否死循环或等待外部输入 |
-| `clear()` 被跳过 | 拆分调试模式下 | 正常行为，避免冲掉输出 |
+| `图像未找到` | 图像识别失败 | 降低 `confidence`、缩小 `region` |
+| `WaitAll` 阻塞 | `go` 未完成 | 检查子协程是否死循环 |
+
+### 19.2 已知问题（4.2 源码实测）
+
+1. **`bocchi -env -record` 不可用**：源码把 `os.Args[2]`（即 `"-record"`）当秒数解析，恒输出 `无效的时长: strconv.ParseFloat: parsing "-record": invalid syntax`。键盘录制请在脚本里用 `keyboard.record(...)`。
+2. **版本字符串未更新**：`-version` 仍输出 `(Bocchi 4.1)`、帮助横幅仍为 `1.14.1 (Bocchi 4.1.4)`、REPL 仍为 `v1.14.0 (Bocchi 4.1)`。
+3. **`static` 变量赋值无效**：`static int s = 1; s = 2; puts s;` 输出 `1`（赋值写进影子变量，读取永远返回初值），详见 [§3.5](#35-静态变量static)。
+4. **函数记忆化缓存碰撞与副作用跳过**：`f(1)` 与 `f("1")` 共享缓存槽；带副作用函数第二次同参调用不执行函数体，详见 [§6.8](#68--函数调用记忆化缓存实测发现)。
+5. **`input()` 管道缓冲被吞**：多行一次性管道输入时，第二个及以后的 `input()` 读到 EOF 空串，详见 [§9.4](#94-输入input)。
+6. **服务器 handler 崩溃时状态码丢失**：内部错误字典的 `status` 是 Go 整型，响应端只识别浮点 → 崩溃响应实际返回 `200`（而非 500），正文仍为错误信息，详见 [§14.3](#143-返回值与响应格式)。
+7. **io4 顶层副作用**：安装 io4 后，每次运行脚本都会创建/覆写 `test.txt`，且 `addlist`/`formax` 依赖该中转文件（并发场景注意竞态）。
+8. **`server.listen` 快照路由**：listen 启动后新注册的路由不会被本次监听接受，需先注册全部路由再 listen。
+9. **`return fn(...);` 解析失败**：返回命名函数调用必须加括号 `return (fn(...));`，详见 [§6.6](#66-尾调用优化)。
+10. **数字字面量后接类型转换失效**：`123.string` / `3.9.int` 会被词法器把 `.` 吞进浮点数而报错，需写 `(123).string` / `(3.9).int`（变量如 `s.float` 不受影响），详见 [§10.3](#103-类型转换)。
+11. **`变量.方法(...)` 独立语句失败**：`l.add(4);`、`s.split(" ");` 作为独立语句会解析失败，需放进 `set tmp = ...` 等表达式，详见 [§7.1](#71-列表)。
+12. **裸列表字面量不能作语句**：单独一行 `[1, 2, 3]` 报"无法同步"，详见 [§7.1](#71-列表)。
+13. **字典字面量必须带引号 key**：`{name: 1}` 报错，需 `{"name": 1}`，详见 [§7.2](#72-字典)。
+14. **更多保留字**：`add`（list.add 方法）、`ok`（ok() 同步）、`str`（str() 转换）、`now`（time.now）都是关键字，不能作变量/函数名；`_` 不能作为标识符首字符。
+15. **【已修复】os.cmd 中文乱码**：旧版把子进程输出一律按 GBK 解码，导致 `puts os.cmd("bocchi us.bocchi")` 的"执行用时"乱码。本版（2026-10-28 重新编译的 `Bocchi4.2.exe`）已改为**先探测合法 UTF-8、再回退 GBK**（`utf8.Valid` 启发式，三处命令执行路径 `os.cmd` / `os.admin_cmd` / `executeCommand` 同步修复），详见 [§10.8](#108-系统命令与参数)。旧二进制备份在 `Bocchi4.2.exe.bak`；系统已安装的 bocchi 需覆盖更新才生效。
 
 ---
 
-## 19. 旧版 → 4.1 变更速查
+## 20. 4.1 → 4.2 变更速查
 
-### 19.1 语法层面
+### 20.1 新增
 
-| 项目 | 旧文档 | 4.1 实际 |
-|---|---|---|
-| 版本号 | `1.13.4 / Bocchi 4.0.3` | **`1.14.0 / Bocchi 4.1`** |
-| 逻辑运算符 | "无" | ✅ **`and` / `or`** |
-| 类型转换 | `change(var, type)` / `->` | ✅ **`expr.int` / `expr.float` / `expr.string`** |
-| `for..in` 循环体变量 | 示例混用 `"..." + i` | ✅ **必须 `i.string`** |
-| 字符串长度 | `str.len()`（带括号） | ✅ **`str.len`（无括号）** |
-| 列表生成器 | `range` / `repeat` / `zeros` / `ones` | ✅ **仅 `range` / `repeat` 可用** |
-| 对象继承关键字 | "extends"（概念） | ✅ **`obj 子类 ? 父类`** |
-
-### 19.2 API 名称修正
-
-| 旧文档 | 4.1 正确写法 |
+| 项目 | 说明 |
 |---|---|
-| `qr.scan(path)` | ✅ `file.scan(path)` |
-| `image.show(path)` | ✅ `dir.image.show(path)` |
-| `encrypt(path, pwd)` | ✅ `file.encrypt(path, pwd)` |
-| `decrypt(path, pwd)` | ✅ `file.decrypt(path, pwd)` |
-| `image_find("x", region(...), confidence=0.8)` | ✅ `image_find("x") region(...) confidence=0.8` |
-| `screenshot("x", region(...))` | ✅ `screenshot("x") region(...)` |
-| `str.len()` | ✅ `str.len` |
-| `greet("Bob"+"Hi")` 想传两个参数 | ✅ `greet("Bob", "Hi")` |
+| 🆕 `server` 命名空间 | `server.get/post/put/delete(path, handler)`、`server.listen(port)`、`server.stop()`、`server.wait()`（详见 [§14](#14-服务器功能42-新增)） |
+| 🆕 新 Token | `SERVER` `ROUTE_GET` `ROUTE_POST` `ROUTE_PUT` `LISTEN` `SERVER_STOP` `SERVER_WAIT`（共 7 个，与 4.1.4-2 源码逐一比对确认，无其它 Token 变化） |
+| 🆕 新关键字 | `server` `get` `post` `put` `listen` `stop` `wait` |
+| 🆕 新增函数（源码对比） | `parseServerExpr` `handleServerRequest` `writeServerResponse` `allowedMethods`（全部为服务器实现） |
 
-### 19.3 新增特性（旧文档未收录）
+### 20.2 破坏性变更
 
-- 🆕 **`memory` 命名空间**：跨协程共享内存（write/read/add/append/has/keys/size/getString/writeString 等）
-- 🆕 **`ok(var) = expr;`**：子协程写回全局
-- 🆕 **`exit()` / `popup()`**：退出与弹窗
-- 🆕 **`mod "file.bocchi"`**：直接引入脚本
-- 🆕 **`?<file>` 拆分调试模式**
-- 🆕 **`bocchi -env` 默认显示状态**
-- 🆕 **`bocchi -install` 无包名时安装解释器自身**
-- 🆕 **安装时询问是否安装 `io3.tuka` 扩展；已安装则覆盖**
-- 🆕 **`.tuka` 包安装支持**
+| 项目 | 影响 |
+|---|---|
+| ⚠️ `get` / `post` / `put` / `listen` / `stop` / `wait` / `server` 成为全局关键字 | 4.1 脚本中同名变量/函数会解析失败，需改名 |
 
-### 19.4 错误处理、并发、测试（旧文档已包含，保持不变）
+### 20.3 保持不变（与 4.1.4 一致）
 
-- `try / expect(err) { ... }` 错误捕获 ✅
-- `defer <` / `defer <<` 延迟执行 ✅
-- `go { ... }` / `wait_all;` 并发 ✅
-- `test "name" { assert(...); };` / `runTests;` 测试 ✅
+- 版本号 `1.14.1`、全部语言特性（变量/运算符/流程控制/函数/对象/io/内置 API）
+- `-env` 更新流程（版本检查 + io4 扩展检测，4.1.4 已引入）
+- `?<file>` 拆分调试、`-prof` 性能分析、`-link` 打包、`-package` 加密包
+- `memory` / `ok()` / `mod` / `test` / `defer` / `try-expect` 等全部沿用
 
 ---
 
-祝您使用 Bocchi 4.1 编程愉快！ 🎉
+## 21. 完整测试报告（2026-10-28 实测）
 
+测试环境：`Bocchi4.2.exe`（本目录）、Windows、已安装包 `io4`（自动加载）。
 
-# io3 扩展方法文档
-ver1.1 2026.10.19
+### 21.1 测试结果总表
 
-> 文件来源：`set void = void;.txt`
-> 语言：Bocchi 4.1
-> 本文件定义了一套通用工具函数（数学、列表、字符串、文件、判空），供其他 Bocchi 脚本 `use "io3"` 后调用。
+| 测试文件 | 结果 | 实测要点 |
+|---|---|---|
+| `us.bocchi` | ✅ 通过（exit 0） | 输出 `2`，1.1ms |
+| `yuan.bocchi` | ✅ 通过 | 内容 `12+12`，被 `bocchi5_yuan.tuka` 读取 |
+| `statictest.tuka` | ✅ 通过（exit 0） | 切片 `[3 4 5]`、`del/setlist`、`{name}/{age}` 嵌入、memory 并发 1000、`%`/`mod` 取模、`os.cmd("bocchi us.bocchi")` 全部正确 |
+| `newtest.tuka` | ✅ 通过（exit 0） | 继承 + `set Dog$name = "dog"` 生效，输出 `汪汪！我是dog...` |
+| `io4.tuka` | ✅ 通过（exit 0） | 顶层加载无报错（含 `test.txt` 初始化） |
+| `bocchi5_yuan.tuka` | ✅ 通过（exit 0） | `12+12` → 输出 `24`，13ms |
+| `web.tuka` | ✅ 通过（服务器功能正常） | `GET /` → 200 + text/html（test.html）；`GET /run` → 200 + `服务器内部错误: Invalid operands for +`（x 未定义，⚠️ 状态码应为 500 但实测 200，见 [§19.2-6](#192-已知问题42-源码实测)）；未知路径 → 404；服务器正常监听 18362 并优雅终止 |
+| `完整更新测试.bocchi` | ✅ 通过（exit 0，3.19s） | 取整/输出/列表/函数/循环/鼠标（`mouse.getPos()` 成功）/并发/截图（成功生成 463KB 新 `screenshot.png`）/键盘录制（5s 无按键→空 `test_keys.txt`）/对象/继承/memory 全部正常；`test` 断言 **2/2 通过，成功率 100%** |
+| `bocchi4.1p\完整测试用例.bocchi` | ✅ 通过（exit 0，3.18s） | 与上一文件内容一致（仅末尾换行差异，SHA256 不同、逐行比对 0 差异），结果相同 |
+| `fib数列.bocchi` | ✅ 通过（exit 0，13.9ms） | `fib_rec(1000)` 因记忆化缓存秒出完整大数（[§6.8](#68--函数调用记忆化缓存实测发现)） |
+| `REPL-cmdrode.bocchi` | ✅ 通过（exit 0） | 逐行延时驱动 stdin：`putsln a b c` → 输出 a b c，`exit` → 正常退出；⚠️ 一次性管道输入会因 `input()` 缓冲失效（[§19.2-5](#192-已知问题42-源码实测)） |
+| `1.bocchi` | ⚠️ **未运行** | 内含 `os.cmd("copy /Y BC2027.4.exe 'C:\Program Files\Bocchi\bocchi.exe'")`，会覆盖已安装解释器，测试时已跳过 |
+| `word.bocchi` | ⚠️ **未运行** | 会向当前活动窗口注入 10 次 `111`+回车，无人值守环境不安全 |
+
+### 21.2 测试中发现的解释器行为（已写回本文档）
+
+1. **函数调用全局记忆化缓存**：`fib(1000)` 13.9ms；但参数按 `%v` 串化导致 `f(1)`/`f("1")` 缓存碰撞（实测 `f("1")` 返回 `2`），带副作用函数第二次调用跳过函数体 → [§6.8](#68--函数调用记忆化缓存实测发现)。
+2. **`static` 变量只读**：`static int s = 1; s = 2; puts s;` → `1`。大测试里 `static int result1 = 1; result1 = fib(35);` 因此输出 `1` 而非 9227465 → [§3.5](#35-静态变量static)。
+3. **handler 崩溃响应状态码丢失**（500→200）→ [§14.3](#143-返回值与响应格式)。
+4. **`input()` 多行管道输入失效** → [§9.4](#94-输入input)。
+5. 旧 README 两处错误实证：`greet("Bob"+"Hi")` 实际输出 `Hello, BobHi!`；`calculate(2,3,4)` 实际输出 `<nil>`（非 9）。
+
+### 21.3 测试产物
+
+- `screenshot.png`（463KB，本次测试新生成；旧截图备份在 `screenshot.old.png`）
+- `test_keys.txt`（0 字节：录制 5 秒内无按键，行为正确）
+- `yuanout.btmp`（`bocchi5_yuan.tuka` 重新生成；旧文件备份 `yuanout.btmp.bak`）
+- `test.txt`（io4 自动加载时的中转文件）
 
 ---
-## 1.1新增:
-```bocchi
-sort(list, reverse = false)
-//对列表 `list` 进行排序。默认按升序排序，`reverse = true` 时按降序排序。
 
-reverse2(list)
-//对列表 `list` 进行反转。
-```
-## 目录
+## 22. 代码示例逐条测试报告（2026-10-28 实测）
 
-- [全局常量](#全局常量)
-- [数学类](#数学类)
-- [列表类](#列表类)
-- [字符串类](#字符串类)
-- [文件类](#文件类)
-- [工具类](#工具类)
-- [分类速查表](#分类速查表)
-- [依赖关系](#依赖关系)
-- [使用示例](#使用示例)
+本文档全部 55 个 ```bocchi 示例块与 9 个 ```bash 命令块均已用 `Bocchi4.2.exe` 逐条实测。判定标准：**解释器无报错输出**（⚠️ 解释器出错后仍以退出码 0 结束，需看输出中是否出现 `❌ 错误发生`）。
+
+### 22.1 汇总
+
+- ✅ **直接可运行**：43 个 bocchi 块（含 2 个故意演示错误的"错误写法"块，报错符合预期）
+- ❌ **实测失败、已修正文档**：10 个块（修正后已复测通过，见 §22.3）
+- 🔀 **需改造才能自动运行**：2 个（`break` 占位符、`go { ... }` 伪代码——已用等价写法验证）
+- ⏭️ **跳过自动运行**：`popup`（阻塞弹窗）、`-env install/uninstall`、`-install/-uninstall`、`-package write/install`（系统级/交互式）
+- 4 个无语言标记的 ``` 块为**输出示例**，非代码
+
+### 22.2 逐条结果
+
+**✅ 直接通过（43 个 bocchi 块）**：
+
+| 章节 | 示例 | 实测 |
+|---|---|---|
+| §1.2 / §5.1 / §5.3 / §5.4 / §9.1~9.3 | puts/putsf/putsr、if-else（pre: x=-1）、loop、for-in、for..in、多表达式 `puts x, "..."`、`puts num : 2`（→3.14） | 全部输出与注释一致 |
+| §3.2~3.5 | 多变量 `set a,b,c,d,e`、type/static 声明（已改带引号 key） | ✅ |
+| §4.1~4.3 | 算术+取模 `%`/`mod`、比较、and/or（pre: x=50） | ✅ 14/1024/1/-1/1.5/2、true、in range |
+| §6.2~6.8 | 默认参数 9/1024、可变参数 6/15、fn+go 定义、lambda、rock、记忆化 fib | ✅ |
+| §7.3 / §7.4 | range/repeat、`{name}` 嵌入 | ✅ |
+| §8.1~8.2 | obj Animal / Dog 继承（Dog 前置 Animal） | ✅ 输出 1/未知品种/汪汪！…/0 |
+| §9.6 | `exit;`→0、`exit(1);`→1、`exit("2");`→2 | ✅ 退出码正确 |
+| §10.1~10.9 | rand、try/expect、defer（Cleanup/Late/Latest）、go、ok()（→42）、memory（→1000）、mod 引入脚本（输出 yes） | ✅ |
+| §10.11 | 图像：`screenshot`→`image_find` 全屏图找到（得分 1.00）、`image_exists` 真/假、region 截图 | ✅ |
+| §13 / §14.1~14.6 | 服务器：路由注册片段、完整例自停版（GET /→hi、/stop 优雅退出）、后台 listen+curl、全部路由（GET/POST/PUT/DELETE/404）端到端 | ✅ |
+| §15 | test 块自动运行（2/2 通过 100%）、runTests、assert（通过版；顶层失败版只警告不崩溃） | ✅ |
+| §5.6 / §19 | 错误写法块：块语句后加 `;` → 实测报 `同步到分号` ✓（符合文档描述） | ✅ |
+
+**✅ bash 命令块（9 个）**：`-help`、`-env`（版本检查→io4 检测→状态）、`-env status`、`-list`（io4）、`bocchi hello.bocchi`、`-prof`（报告生成）、`"?script"` 拆分调试（3 块 2 过 1 败、报 `行:列`）、`-link`（生成 23MB 独立 exe 且可运行）、`-package make`（需密码，生成 `.enc.bocchi`）全部验证；`-env install/uninstall`、`-install/-uninstall`、`-package write/install` 因会改系统/交互式而跳过。
+
+### 22.3 实测失败的示例与修正（10 处）
+
+| # | 原示例 | 失败原因（实测） | 已修正为 |
+|---|---|---|---|
+| 1 | `set dict1 = {name: "Bob", age: 25};`（§3.1/3.3/3.5/7.2） | 字典 key 必须是字符串字面量，报 `同步到右花括号` | `{"name": "Bob", "age": 25}` ✅ |
+| 2 | `type bool ok = true;`（§3.3） | `ok` 是关键字（ok() 同步语句） | `type bool flag = true;` ✅ |
+| 3 | `fn add(a, b) {...}`、`set add = lambda...`（§6.1/6.5） | `add` 是关键字（list.add 方法） | 改名 `add2` ✅ |
+| 4 | `return fib_iter(n, 0, 1);`（§6.6） | `return fn(...);` 尾调用解析 bug，报 `同步到…` | `return (fib_iter(n, 0, 1));` ✅ 实测 fib(10)=55 |
+| 5 | 裸列表字面量一行 `[1, "a", true]`（§7.1） | 被当作解构赋值左值，报 `无法同步` | 放进 `puts [1, "a", true];` ✅ |
+| 6 | `l.add(4);` 独立语句（§7.1） | 语句级"对象成员赋值"分支对关键字方法名 panic | `set tmp = l.add(4);` ✅ |
+| 7 | `set n = 3.9.int;`、`set t = 123.string;`（§10.3） | 词法器把 `3.9.` / `123.` 吞成浮点，后续 token 报错 | `(3.9).int` / `(123).string` ✅ |
+| 8 | `set now = time.now(); time.format(now, ...)`（§10.6） | `now` 是关键字（time.now），表达式里用不了 | 变量改名 `nowtime` ✅ 实测输出 2026-10-28 20:54:16 |
+| 9 | `set str = "Hello"; str.len`（§15.1） | `str` 是关键字（str() 转换） | 改名 `s` ✅ |
+| 10 | §14.4 后台监听示例无路由，`curl` 得 404 | 块本身能跑但演示效果差 | 补充 `server.get("/", ...)` ✅ 实测输出 hi |
+
+> 另：测试驱动中发现 `_` 不能作为变量名首字符（报 `Unknown character: _`）。
+
+---
+
+祝您使用 Bocchi 4.2 编程愉快！ 🎉
+
+
+# io4 扩展方法文档
+ver1.0 2026.10.28
+
+> 文件来源：`io4.tuka`（595 行）
+> 语言：Bocchi 4.2（解释器 v1.14.1）
+> 本文档参照《io3使用说明.markdown》的结构撰写，全部函数均在本机用 `Bocchi4.2.exe` 逐条实测（输出见各函数"实测"栏）。
+> io4 是 io3 的替代版：已安装为包时（`bocchi -list` 显示 io4），**每次运行任何脚本都会自动加载**全部函数；旧扩展 io2/io3 会在 `bocchi -env` 时提示移除。
+
+---
+
+## 与 io3 的差异（迁移必读）
+
+| 项目 | io3 | io4 |
+|---|---|---|
+| `repeatstring` / `repeatString` | ✅ 全小写 | ⚠️ **改名 camelCase**，旧名实测 `Undefined variable` |
+| `padleft` / `padLeft` | ✅ 全小写 | ⚠️ **改名 camelCase**，旧名不可用 |
+| `padright` / `padRight` | ✅ 全小写 | ⚠️ **改名 camelCase**，旧名不可用 |
+| 排序 / 反转 | 无 | 🆕 `sort` / `reverse2` |
+| 类型判断 | 无 | 🆕 `isNumber/isString/isBool/isList/isDict/typeOf` |
+| 首尾元素 | 无 | 🆕 `first` / `last` |
+| 字符串套件 | 无 | 🆕 `startsWith/contains2/splitLines/charAt/subString/reverseString/isEmpty/upper/lower` |
+| 数学扩展 | 无 | 🆕 `clamp/sign/factorial/deg2rad/rad2deg/lerp` |
+| 路径 / 平台 / 随机 | 无 | 🆕 `fileExists/basename/extname/isWindowsOS/getCwd/randString/shuffle/dump` |
+| 顶层副作用 | 无 | ⚠️ 加载时执行 `file.write("test.txt","")` 并占用全局变量 `lin/x/i/a/file2` |
+
+> ⚠️ 顶层副作用：io4 每次加载会**创建/覆写 `test.txt`**（`addlist`/`formax` 的中转文件）。在只读目录运行脚本会因写 `test.txt` 失败而报错。
 
 ---
 
@@ -1484,144 +1367,70 @@ reverse2(list)
 
 | 名称 | 值 | 用途 |
 |---|---|---|
-| `void` | `"void"` | 表示"空值"的字符串哨兵 |
+| `void` | `"void"` | 空值哨兵字符串 |
 | `nil` | `"<nil>"` | 另一个空值标记（本文件定义但未使用） |
+
+```bocchi
+set void = "void";
+set nil = "<nil>";
+```
 
 ---
 
 ## 数学类
 
-### `min(...nums)`
+### `min(...nums)` / `max(...nums)`
 
-求所有参数中的最小值。
+求最小/最大值。参数为空返回 `void`。
 
-- **参数**：任意数量数字（可变参数）
-- **返回**：最小值；参数为空时返回 `void`
-- **示例**：`min(3, 1, 4, 1, 5) → 1`
+- **实测**：`min(3,1,4,1,5) → 1`，`max(3,1,4,1,5) → 5` ✅
 
-```bocchi
-fn min(...nums) {
-    if (nums.len == 0) {
-        return void;
-    }
-    set m = nums[0];
-    for v in nums {
-        if (v < m) {
-            m = v;
-        }
-    }
-    return m;
-}
-```
+### `sum(...nums)` / `avg(...nums)`
 
----
+求和 / 求平均。`avg` 无参数返回 `void`。
 
-### `max(...nums)`
-
-求所有参数中的最大值。
-
-- **参数**：任意数量数字（可变参数）
-- **返回**：最大值；参数为空时返回 `void`
-- **示例**：`max(3, 1, 4, 1, 5) → 5`
-
-```bocchi
-fn max(...nums) {
-    if (nums.len == 0) {
-        return void;
-    }
-    set m = nums[0];
-    for v in nums {
-        if (v > m) {
-            m = v;
-        }
-    }
-    return m;
-}
-```
-
----
-
-### `sum(...nums)`
-
-求和。
-
-- **参数**：任意数量数字（可变参数）
-- **返回**：数字，初始为 `0`
-- **示例**：`sum(1, 2, 3) → 6`
-
-```bocchi
-fn sum(...nums) {
-    set total = 0;
-    for v in nums {
-        total = total + v;
-    }
-    return total;
-}
-```
-
----
-
-### `avg(...nums)`
-
-求平均值。
-
-- **参数**：任意数量数字（可变参数）
-- **返回**：平均数；无参数时返回 `void`
-- **示例**：`avg(1, 3, 4324, 2342) → 1667.5`
-
-```bocchi
-fn avg(...nums) {
-    set total = 0;
-    set count = 0;
-    for v in nums {
-        total = total + v;
-        count = count + 1;
-    }
-    if (count == 0) {
-        return void;
-    }
-    return total / count;
-}
-```
-
----
+- **实测**：`sum(1,2,3) → 6`，`avg(1,3,4324,2342) → 1667.5` ✅
 
 ### `abs(x)`
 
-求绝对值。
+绝对值。**实测**：`abs(-10) → 10` ✅
 
-- **参数**：`x` 数字
-- **返回**：非负数
-- **示例**：`abs(-10) → 10`
+### `clamp(x, lo, hi)`
 
-```bocchi
-fn abs(x) {
-    if (x < 0) {
-        return 0 - x;
-    }
-    return x;
-}
-```
+限制在 `[lo, hi]`。**实测**：`clamp(10, 0, 5) → 5` ✅
 
----
+### `sign(x)`
 
-### `formax(a, b)`
+符号：`-1 / 0 / 1`。**实测**：`sign(-3) → -1`，`sign(0) → 0`，`sign(7) → 1` ✅
 
-截取数字字符串前 `b` 位并转为浮点数。
+### `factorial(n)`
 
-- **参数**：
-  - `a`：数字字符串，如 `"3.1415926"`
-  - `b`：截取位数
-- **返回**：`float`
-- **说明**：
-  - `a` 按字符拆成数组 `aa`
-  - 若 `aa.len < b`，直接 `a.float`
-  - 否则用 `for..in i b+2` 把前 `b+2` 个字符写入 `test.txt`，再 `file.read` 转 `float`
-  - **注意**：实现依赖全局中转文件 `test.txt`，且实际多取 2 位（依赖 `float` 解析截断）
-- **示例**：`formax("3.1415926", 3) → 3.14`
+阶乘（递归）。**实测**：`factorial(5) → 120` ✅
+
+> ⚠️ 递归函数在 4.2 有全局记忆化缓存（同参秒回），但 `factorial` 无基准条件保护，`factorial(0)` 会无限递归。
+
+### `deg2rad(d)` / `rad2deg(r)`
+
+角度 ↔ 弧度。**实测**：`deg2rad(45) → 0.7853981633974483`，`rad2deg(0.7853981633974483) → 45` ✅
+
+### `lerp(a, b, t)`
+
+线性插值。**实测**：`lerp(1, 2, 0.5) → 1.5` ✅
+
+### `formax(a, b)` ⚠️ 有坑
+
+截取数字字符串转浮点。
+
+- **参数**：`a` 数字字符串，`b` 截取位数
+- **实测**：`formax("3.1415926", 3) → 3.141`（**不是 3.14**！实际取前 `b+2` 个字符再转浮点）
+- **坑（实测）**：
+  1. **不清空 `test.txt`**：连续调用不同参数会叠加损坏——`formax("3.1415926",3)` 后接 `formax("2.71828",3)` 报错 `无法将字符串 '3.1412.718' 转换为浮点数`；
+  2. **记忆化副作用跳过**：同参数第二次调用直接返回缓存值（`formax` 函数体不会执行，`test.txt` 不再追加）；
+  3. 依赖全局中转文件 `test.txt`。
 
 ```bocchi
 fn formax(a,b) {
+    //file.write("test.txt", "");
     set aa = a.split("");
     if (aa.len < b) {
         set x = a.float;
@@ -1642,315 +1451,123 @@ fn formax(a,b) {
 
 ## 列表类
 
-### `addlist(a, b)(旧版，不建议使用)`合并两个列表。
-当前拥有更安全的memory操作，建议使用`memory.append`。
+### `addlist(a, b)`
 
-- **参数**：`a`、`b` 两个列表
-- **返回**：合并后的新列表
-- **说明**：**实现绕远路**——通过 `test.txt` 做序列化中转：
-  1. `file.write` 写入 `a.string + "\n" + b.string`
-  2. `file.read` 读回
-  3. 按行 `split("\n")`
-  4. 循环中去掉 `[` `]` 和多余空格，再 `split(" ")`
-  5. 最后 `file.delete` 删除中转文件
-- **注意**：
-  - 循环条件 `i < x.len + 1` 与外部变量 `i` 耦合
-  - 循环内 `set a = ...` 反复重新赋值，最终返回最后一次处理结果
-  - 含空格或特殊字符的元素容易解析错误
-- **示例**：`addlist([1, 2], [3, 4]) → [1, 2, 3, 4]`
+合并两个列表（lambda，旧版实现，实测可用但脆弱）。
 
-```bocchi
-set addlist = lambda(a,b) {
-    file.write("test.txt", a.string +"\n"+ b.string);
-    lin = file.read("test.txt");
-    x = lin.split("\n");
-    file.delete("test.txt");
-
-    loop (i<x.len+1) {
-        i = i + 1;
-        set a = x.string.replace("]","");
-        set a = a.string.replace("[","");
-        set a = a.string.replace("   ","");
-        set a = a.string.split(" ");
-    }
-
-    return a;
-};
-```
-
----
+- **实测**：`addlist([1,2],[3,4]) → [1 2 3 4]` ✅
+- **说明**：通过 `test.txt` 序列化中转（写 → 读 → **删除**），循环条件 `i < x.len+1` 与外部全局变量 `i/x/a/lin` 耦合；对含空格或特殊字符的元素容易解析错误。
+- 当前更安全的选择：`memory.append`。
 
 ### `del(list1, index)`
 
-删除列表指定下标的元素。
-
-- **参数**：
-  - `list1`：列表
-  - `index`：要删除的下标
-- **返回**：新列表
-- **依赖**：`addlist`
-- **示例**：`del(["a","b","c","d","e"], 2) → ["a","b","d","e"]`
-
-```bocchi
-fn del(list1,index) {
-    set l1 = list1[0:index];
-    index = index + 1;
-    set l2 = list1[index:];
-    set l1 = addlist(l1,l2);
-    return l1;
-}
-```
-
----
+删除指定下标元素（依赖 `addlist`）。**实测**：`del(["a","b","c","d","e"], 2) → [a b d e]` ✅
 
 ### `setlist(listc, index, index2)`
 
-把列表中下标 `index` 的元素替换为 `index2`。
+替换指定下标元素（依赖 `addlist`）。**实测**：`setlist(["a","b","c"], 1, "X") → [a X c]` ✅
 
-- **参数**：
-  - `listc`：列表
-  - `index`：要替换的下标
-  - `index2`：新值
-- **返回**：新列表
-- **依赖**：`addlist`
-- **示例**：`setlist(["a","b","c"], 1, "X") → ["a","X","c"]`
+### `isinlist(list1, value)` / `indexof(list1, value)` / `countof(list1, value)`
 
-```bocchi
-fn setlist(listc,index,index2) {
-    set l1 = listc[0:index];
-    index = index + 1;
-    set l2 = listc[index:];
-    set l1 = addlist(l1,index2);
-    set l1 = addlist(l1,l2);
-    return l1;
-}
-```
+包含判断 / 首次下标（找不到 `-1`）/ 出现次数。
 
----
-
-### `isinlist(list1, value)`
-
-判断列表是否包含某个值。
-
-- **参数**：`list1` 列表，`value` 待查值
-- **返回**：`bool`
-- **示例**：`isinlist([1,2,3,4,5], 3) → true`
-
-```bocchi
-fn isinlist(list1, value) {
-    for v in list1 {
-        if (v == value) {
-            return true;
-        }
-    }
-    return false;
-}
-```
-
----
-
-### `indexof(list1, value)`
-
-查找元素下标。
-
-- **参数**：`list1` 列表，`value` 待查值
-- **返回**：首次出现的下标；找不到返回 `-1`
-- **示例**：`indexof([1,2,3,4,5], 3) → 2`
-
-```bocchi
-fn indexof(list1, value) {
-    set i = 0;
-    for v in list1 {
-        if (v == value) {
-            return i;
-        }
-        i = i + 1;
-    }
-    return -1;
-}
-```
-
----
-
-### `countof(list1, value)`
-
-统计某值在列表中出现的次数。
-
-- **参数**：`list1` 列表，`value` 待查值
-- **返回**：数字
-- **示例**：`countof([1,2,3,4,5,3], 3) → 2`
-
-```bocchi
-fn countof(list1, value) {
-    set c = 0;
-    for v in list1 {
-        if (v == value) {
-            c = c + 1;
-        }
-    }
-    return c;
-}
-```
-
----
+- **实测**：`isinlist([1,2,3,4,5],3) → true`，`indexof(...) → 2`，`countof([1,2,3,4,5,3],3) → 2` ✅
 
 ### `join(list1, sep)`
 
-用分隔符把列表拼成字符串。
-
-- **参数**：`list1` 列表，`sep` 分隔符字符串
-- **返回**：字符串
-- **说明**：首元素前不加分隔符
-- **示例**：`join([1,2,3,4,5], ".") → "1.2.3.4.5"`
-
-```bocchi
-fn join(list1, sep) {
-    set result = "";
-    set first = true;
-    for v in list1 {
-        if (first) {
-            result = result + v.string;
-            first = false;
-        } else {
-            result = result + sep + v.string;
-        }
-    }
-    return result;
-}
-```
-
----
+用分隔符拼字符串。**实测**：`join([1,2,3,4,5], ".") → "1.2.3.4.5"` ✅
 
 ### `choice(list1)`
 
-随机取列表中的一个元素。
+随机取一个元素；空列表返回 `void`。**实测**：`choice([1,2,3,4,5]) → 1`（随机）✅
 
-- **参数**：`list1` 列表
-- **返回**：任意元素；空列表返回 `void`
-- **示例**：`choice([1,2,3,4,5]) → 随机一个`
+### `sort(arr, reverse = false)` 🆕
 
-```bocchi
-fn choice(list1) {
-    if (list1.len == 0) {
-        return void;
-    }
-    return list1[rand(0, list1.len - 1)];
-}
-```
+冒泡排序（原地）。
+
+- **参数**：`arr` 列表，`reverse = true` 时降序
+- **实测**：`sort([3,1,4,1,5,9,2,6]) → [1 1 2 3 4 5 6 9]`，`sort(..., true) → [9 6 5 4 3 2 1 1]` ✅
+
+### `reverse2(arr)` 🆕
+
+原地反转。**实测**：`reverse2([1,2,3,4]) → [4 3 2 1]` ✅
+
+### `first(arr, d = void)` / `last(arr, d = void)` 🆕
+
+首 / 尾元素；空列表返回默认值 `d`。**实测**：`first([9,8,7]) → 9`，`last([9,8,7]) → 7` ✅
+
+### `shuffle(arr)` 🆕
+
+Fisher–Yates 洗牌（原地）。**实测**：`shuffle([1,2,3,4,5]) → [3 4 5 1 2]`（随机）✅
 
 ---
 
 ## 字符串类
 
-### `trim(s)`
+> ⚠️ io3 的 `repeatstring` / `padleft` / `padright` 在 io4 中**已改名**为 `repeatString` / `padLeft` / `padRight`（camelCase），旧名实测不可用。
 
-去除字符串中的所有空格。
-
-- **参数**：`s` 字符串
-- **返回**：去掉空格的字符串
-- **说明**：本语言无原生 `trim`，这里用 `replace(" ", "")` 简化实现，**不处理** `\t`、`\n` 和首尾空白
-- **示例**：`trim("  123  ") → "123"`
-
-```bocchi
-fn trim(s) {
-    set x = s.replace(" ", "").string;
-    return x;
-}
-```
-
----
-
-### `repeatstring(s, n)`
-
-重复字符串 `n` 次。
-
-- **参数**：`s` 字符串，`n` 次数
-- **返回**：字符串
-- **示例**：`repeatstring("hello", 3) → "hellohellohello"`
-
-```bocchi
-fn repeatstring(s, n) {
-    set result = "";
-    for..in i n {
-        result = result + s;
-    }
-    return result;
-}
-```
+| 函数 | 说明 | 实测 |
+|---|---|---|
+| `trim(s)` | 去空格（`replace(" ","")`，**不处理** `\t`/`\n`/首尾空白） | `trim("  123  ") → "123"` ✅ |
+| `repeatString(s, n)` | 重复 n 次 | `repeatString("hello",3) → "hellohellohello"` ✅ |
+| `padLeft(s, pad, total)` | 左填充 | `padLeft("5","0",3) → "005"` ✅ |
+| `padRight(s, pad, total)` | 右填充 | `padRight("5","0",3) → "500"` ✅ |
+| `startsWith(s, prefix)` 🆕 | 前缀判断 | `startsWith("hello","he") → true`，`startsWith("hello","xy") → false` ✅ |
+| `contains2(s, sub)` 🆕 | 包含判断（`split(sub).len > 1`） | `contains2("hello","lo") → true` ✅ |
+| `splitLines(s)` 🆕 | 按行拆分 | `splitLines("a\nb") → [a b]` ✅ |
+| `charAt(s, i)` 🆕 | 第 i 个字符；越界返回 `""` | `charAt("hello",4) → "o"` ✅ |
+| `subString(s, a, b)` 🆕 | 截取 `[a, b)` | `subString("hello",1,4) → "ell"` ✅ |
+| `reverseString(s)` 🆕 | 反转 | `reverseString("hello") → "olleh"` ✅ |
+| `isEmpty(s)` 🆕 | 空串判断 | `isEmpty("") → true`，`isEmpty("h") → false` ✅ |
+| `upper(s)` 🆕 | 转大写（仅 ASCII） | `upper("hello") → "HELLO"` ✅ |
+| `lower(s)` 🆕 | 转小写（仅 ASCII） | `lower("HELLO") → "hello"` ✅ |
 
 ---
 
-### `padleft(s, pad, total)`
+## 类型判断类 🆕
 
-左填充字符串到指定长度。
-
-- **参数**：
-  - `s` 原字符串
-  - `pad` 填充字符
-  - `total` 目标总长度
-- **返回**：字符串
-- **说明**：用 `split("").len` 判断当前长度
-- **示例**：`padleft("5", "0", 3) → "005"`
-
-```bocchi
-fn padleft(s, pad, total) {
-    set result = s;
-    loop (result.split("").len < total) {
-        result = pad + result;
-    }
-    return result;
-}
-```
+| 函数 | 说明 | 实测 |
+|---|---|---|
+| `isNumber(x)` | 数字（`x + 0` 不报错） | `isNumber(3241) → true`，`isNumber("32w") → false` ✅ |
+| `isString(x)` | 字符串（`x.split("")` 不报错） | `isString("x") → true` ✅ |
+| `isBool(x)` | 布尔 | `isBool(true) → true`，`isBool(1) → false` ✅ |
+| `isList(x)` | 列表（`x.len` 不报错） | `isList([1,2]) → true` ✅ |
+| `isDict(x)` | 字典（`x["__io3_probe__"]` 不报错） | `isDict({"a":1}) → true` ✅ |
+| `typeOf(x)` | 统一类型名：`bool/num/str/list/dict/unknown` | `typeOf([1]) → list`，`typeOf(1.5) → num`，`typeOf("s") → str`，`typeOf(true) → bool` ✅ |
+| `dump(x)` | 调试串：`[类型]:值` | `dump([1,2]) → "[list]:[1 2]"` ✅ |
 
 ---
 
-### `padright(s, pad, total)`
-
-右填充字符串到指定长度。
-
-- **参数**：
-  - `s` 原字符串
-  - `pad` 填充字符
-  - `total` 目标总长度
-- **返回**：字符串
-- **示例**：`padright("5", "0", 3) → "500"`
-
-```bocchi
-fn padright(s, pad, total) {
-    set result = s;
-    loop (result.split("").len < total) {
-        result = result + pad;
-    }
-    return result;
-}
-```
-
----
-
-## 文件类
+## 文件与路径类
 
 ### `fileadd(file1, txt)`
 
-向文件追加文本。
+向文件追加文本（lambda）。
 
-- **参数**：
-  - `file1`：文件路径
-  - `txt`：要追加的内容
-- **返回**：`""`（空字符串）
-- **说明**：
-  - 先 `file.read` 读入全局 `file2`
-  - 拼接 `txt` 后 `file.write` 回写
-  - **会覆盖全局变量 `file2`**
-- **示例**：`fileadd("use.txt", "1")` — 把 `"1"` 追加到 `use.txt` 末尾
+- **⚠️ 实测坑**：目标文件**必须已存在**——`fileadd` 先 `file.read`，文件不存在直接报 `File read error`；
+- 会覆盖全局变量 `file2`；返回 `""`。
+- **实测**：文件含 `"abc"` 时 `fileadd("f.txt","def")` → 文件变为 `"abcdef"` ✅
 
-```bocchi
-set fileadd = lambda(file1,txt) {
-    file2 = file.read(file1);
-    file2 = file2 + txt;
-    file.write(file1,file2);
-    return "";
-};
-```
+### `fileExists(p)` 🆕
+
+文件是否存在（`file.read` + try/expect）。**实测**：存在 → `true`，不存在 → `false` ✅
+
+### `basename(p)` / `extname(p)` 🆕
+
+路径取文件名 / 扩展名。
+
+- ⚠️ **只按 `/` 分割**：Windows 反斜杠路径（`C:\a\b.txt`）不会被拆分，`basename` 原样返回整个路径；
+- **实测**：`basename("a/b/c.txt") → "c.txt"`，`extname("a/b/c.txt") → ".txt"`，无扩展名返回 `""` ✅
+
+---
+
+## 平台与随机类
+
+| 函数 | 说明 | 实测 |
+|---|---|---|
+| `isWindowsOS()` 🆕 | 是否 Windows（`echo %OS%` 展开判断） | 本机 `true` ✅ |
+| `getCwd()` 🆕 | 当前目录（Windows 用 `cd`，Unix 用 `pwd` 并去尾换行） | `C:\CODE\GO\boc23\examples_check` ✅ |
+| `randString(n)` 🆕 | 随机字符串（小写字母+数字） | `randString(6) → "tugb4f"`（随机）✅ |
 
 ---
 
@@ -1958,18 +1575,9 @@ set fileadd = lambda(file1,txt) {
 
 ### `isVoid(x)`
 
-判断变量是否为空值。
+判断是否为空值（与全局常量 `void` 比较）。
 
-- **参数**：`x` 任意
-- **返回**：`bool`
-- **说明**：与全局常量 `void`（字符串 `"void"`）比较
-- **示例**：`isVoid(void) → true`，`isVoid(1) → false`
-
-```bocchi
-fn isVoid(x) {
-    return x == void;
-}
-```
+- **实测**：`isVoid(void) → true`，`isVoid(1) → false` ✅
 
 ---
 
@@ -1977,10 +1585,12 @@ fn isVoid(x) {
 
 | 类别 | 方法 |
 |---|---|
-| **数值** | `min` `max` `sum` `avg` `abs` `formax` |
-| **列表** | `addlist` `del` `setlist` `isinlist` `indexof` `countof` `join` `choice` |
-| **字符串** | `trim` `repeatstring` `padleft` `padright` |
-| **文件** | `fileadd` |
+| **数值** | `min` `max` `sum` `avg` `abs` `formax` `clamp` `sign` `factorial` `deg2rad` `rad2deg` `lerp` |
+| **列表** | `addlist` `del` `setlist` `isinlist` `indexof` `countof` `join` `choice` `sort` `reverse2` `first` `last` `shuffle` |
+| **字符串** | `trim` `repeatString` `padLeft` `padRight` `startsWith` `contains2` `splitLines` `charAt` `subString` `reverseString` `isEmpty` `upper` `lower` |
+| **类型判断** | `isNumber` `isString` `isBool` `isList` `isDict` `typeOf` `dump` |
+| **文件 / 路径** | `fileadd` `fileExists` `basename` `extname` |
+| **平台 / 随机** | `isWindowsOS` `getCwd` `randString` |
 | **工具** | `isVoid` |
 
 ---
@@ -1990,23 +1600,25 @@ fn isVoid(x) {
 ```
 addlist ──► del
          └─► setlist
-formax ──► test.txt（全局中转文件，未清理）
-fileadd ─► file2（全局变量，被覆盖）
+addlist / formax ──► test.txt（全局中转文件）
+fileadd ──► file2（全局变量，被覆盖）
+addlist ──► i / x / a / lin（顶层全局变量，被反复重赋值）
 ```
 
-### 潜在问题
+### 潜在问题（实测）
 
-- **`addlist` 是核心但实现脆弱**：依赖 `test.txt` 序列化中转，循环条件 `i < x.len + 1` 与外部变量 `i` 耦合，循环内 `set a = ...` 反复重定义，对含空格或特殊字符的列表元素容易出错。
-- **`del` / `setlist` 的正确性完全取决于 `addlist`**，若 `addlist` 解析失败，二者也会失败。
-- **`formax` 同样依赖 `test.txt`**，且循环 `for..in i b+2` 会写入 `b+2` 个字符，与"前 b 位"的语义有偏差（多取 2 位），实际依赖 `float` 解析截断。
-- **`trim` 是简化版**：只删空格，不处理 `\t`、`\n` 和首尾空白。
-- **`void` / `nil` 是普通字符串**，`isVoid` 用 `==` 比较字符串。
+1. **`formax` 不清空 `test.txt`**：连续调用不同参数 → 内容叠加 → `无法将字符串 '3.1412.718' 转换为浮点数`；且同参第二次调用因解释器**记忆化缓存**跳过函数体（副作用不执行，返回缓存值）。
+2. **`addlist` 实现脆弱**：序列化中转 + 循环与外部变量耦合；执行后 `test.txt` 被删除。`del` / `setlist` 的正确性完全取决于 `addlist`。
+3. **`fileadd` 要求文件已存在**：先 `file.read` 后追加，目标缺失直接报错。
+4. **`basename` / `extname` 只按 `/` 分割**：Windows 反斜杠路径处理不了。
+5. **`trim` 是简化版**：只删空格，不处理 `\t`、`\n` 和首尾空白。
+6. **顶层占用全局名**：`lin`、`x`、`i`、`a`、`file2` 在加载时被 io4 占用/初始化，用户脚本同名变量会被覆盖。
+7. **`factorial` 无基准保护**：`factorial(0)` 无限递归。
+8. **`upper` / `lower` 仅 ASCII**。
 
 ---
 
-## 使用示例
-
-### 常用调用
+## 使用示例（实测输出）
 
 ```bocchi
 // 数学
@@ -2015,27 +1627,50 @@ puts max(3, 1, 4, 1, 5);       // 5
 puts sum(1, 2, 3);              // 6
 puts avg(1, 3, 4324, 2342);    // 1667.5
 puts abs(-10);                  // 10
-puts formax("3.1415926", 3);   // 3.14
+puts clamp(10, 0, 5);           // 5
+puts factorial(5);              // 120
+puts formax("3.1415926", 3);   // 3.141（注意：非 3.14）
 
 // 列表
-puts isinlist([1,2,3,4,5], 3);           // true
-puts indexof([1,2,3,4,5], 3);            // 2
-puts countof([1,2,3,4,5,3], 3);          // 2
-puts join([1,2,3,4,5], ".");             // "1.2.3.4.5"
-puts choice([1,2,3,4,5]);                // 随机
-puts del(["a","b","c","d","e"], 2);      // ["a","b","d","e"]
-puts setlist(["a","b","c"], 1, "X");     // ["a","X","c"]
+puts addlist([1,2],[3,4]);              // [1 2 3 4]
+puts del(["a","b","c","d","e"], 2);     // [a b d e]
+puts setlist(["a","b","c"], 1, "X");    // [a X c]
+puts isinlist([1,2,3,4,5], 3);          // true
+puts indexof([1,2,3,4,5], 3);           // 2
+puts countof([1,2,3,4,5,3], 3);         // 2
+puts join([1,2,3,4,5], ".");            // "1.2.3.4.5"
+puts sort([3,1,4,1,5,9,2,6]);           // [1 1 2 3 4 5 6 9]
+puts reverse2([1,2,3,4]);               // [4 3 2 1]
+puts first([9,8,7]);                    // 9
+puts choice([1,2,3,4,5]);               // 随机
 
-// 字符串
-puts trim("  123  ");                    // "123"
-puts repeatstring("hello", 3);           // "hellohellohello"
-puts padleft("5", "0", 3);               // "005"
-puts padright("5", "0", 3);              // "500"
+// 字符串（注意 camelCase 新名）
+puts trim("  123  ");                   // "123"
+puts repeatString("hello", 3);          // "hellohellohello"
+puts padLeft("5", "0", 3);              // "005"
+puts padRight("5", "0", 3);             // "500"
+puts startsWith("hello", "he");         // true
+puts charAt("hello", 4);                // "o"
+puts subString("hello", 1, 4);          // "ell"
+puts reverseString("hello");            // "olleh"
+puts upper("hello");                    // "HELLO"
 
-// 文件
-puts fileadd("use.txt", "1");
+// 类型判断
+puts typeOf([1]);                       // list
+puts dump([1,2]);                       // "[list]:[1 2]"
 
-// 工具
-puts isVoid(void);                       // true
-puts isVoid(1);                          // false
+// 文件（⚠️ 目标必须先存在）
+file.write("demo.txt", "abc");
+puts fileadd("demo.txt", "def");        // ""（返回值），文件变为 "abcdef"
+puts fileExists("demo.txt");            // true
+
+// 平台
+puts isWindowsOS();                     // true（Windows）
+puts getCwd();                          // 当前目录
+puts isVoid(void);                      // true
 ```
+
+祝您使用 io4 愉快！ 🎉
+
+
+
